@@ -6,5 +6,5 @@
 
 因此若 Windows 缺少 Visual Studio 2010 可轉發套件，註冊元件時就會發生錯誤，
 
-在一台乾淨的 Windows 上照著官方影片教學操作，肯定是會卡關的。
+在一台乾淨的 Windows 上照著[官方影片](https://www.youtube.com/watch?v=OgNjvXuBaoI)教學操作，肯定是會卡關的。
 
