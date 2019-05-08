@@ -4,31 +4,26 @@ import math
 import time
 import shutil
 import signal
-import asyncio
-import threading
 import os.path
 
 import pythoncom
 import comtypes.client
 import comtypes.gen.SKCOMLib as sk
 
-# 文件 4-1 p16
-skC = comtypes.client.CreateObject(sk.SKCenterLib, interface=sk.ISKCenterLib)
+class QuoteReceiver():
 
-# 文件 4-4 p77
-skQ = comtypes.client.CreateObject(sk.SKQuoteLib, interface=sk.ISKQuoteLib)
-
-class QuoteReceiver(threading.Thread):
-
-    def __init__(self):
+    def __init__(self, gui_mode=False):
         super().__init__()
         self.done = False
         self.ready = False
         self.valid_config = False
+        self.gui_mode = gui_mode
         self.stock_state = {}
         self.log_path = os.path.expanduser('~\\.skcom\\logs')
         self.dst_conf = os.path.expanduser('~\\.skcom\\quicksk.json')
         self.tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\quicksk.json'
+        self.ticks_hook = None
+        self.kline_hook = None
 
         if not os.path.isfile(self.dst_conf):
             # 產生 log 目錄
@@ -52,99 +47,144 @@ class QuoteReceiver(threading.Thread):
         print('設定檔路徑: ' + self.dst_conf)
         exit(0)
 
-    async def wait_for_ready(self):
-        if not self.done:
-            while not self.ready:
-                time.sleep(0.25)
+    def ctrl_c(self, sig, frm):
+        print('偵測到 Ctrl+C, 結束監聽')
+        self.stop()
 
-    async def monitor_quote(self):
-        global skC, skQ
+    def set_kline_hook(self, hook):
+        self.kline_hook = hook
+
+    def set_ticks_hook(self, hook):
+        self.ticks_hook = hook
+
+    def start(self):
+        if self.ticks_hook is None and self.kline_hook is None:
+            print('沒有設定監聽項目')
+            return
+
         try:
-            #skC.SKCenterLib_ResetServer('morder1.capital.com.tw')
+            signal.signal(signal.SIGINT, self.ctrl_c)
+
+            # 登入
+            skC = comtypes.client.CreateObject(sk.SKCenterLib, interface=sk.ISKCenterLib)
             skC.SKCenterLib_SetLogPath(self.log_path)
-            print('登入', flush=True)
-            retq = -1
             retc = skC.SKCenterLib_Login(self.config['account'], self.config['password'])
-            if retc == 0:
-                print('啟動行情監控', flush=True)
-                retry = 0
-                while retq != 0 and retry < 3 and not self.done:
-                    if retry > 0:
-                        print('嘗試再啟動 {}'.format(retry))
-                    # TODO: 第二次 call 沒有回應, 需要改進重新連線的寫法
-                    retq = skQ.SKQuoteLib_EnterMonitor()
-                    retry += 1
-            else:
-                msg = skC.SKCenterLib_GetReturnCodeMessage(retc)
-                print('登入失敗: #{} {}'.format(retc, msg))
+            if retc != 0: return
+            print('登入成功')
 
-            if retq == 0:
-                print('等待行情監控器啟動完成')
-                await self.wait_for_ready()
-                print('設定商品', flush=True)
-                for (i, stock) in enumerate(self.config['products']):
-                    pn = i + 1
-                    self.stock_state[stock] = None
-                    skQ.SKQuoteLib_RequestStocks(pn, stock)
-                    skQ.SKQuoteLib_RequestTicks(pn, stock)
-                    skQ.SKQuoteLib_RequestKLine(stock, 4, 1)
-            else:
-                print('無法監看報價: #{}'.format(retq))
+            # 建立報價連線
+            # 注意: comtypes.client.GetEvents() 一定要收回傳值, 即使這個回傳值沒用到, 如果不收回傳值會導致事件收不到
+            self.skQ = comtypes.client.CreateObject(sk.SKQuoteLib, interface=sk.ISKQuoteLib)
+            self.skH = comtypes.client.GetEvents(self.skQ, self)
+            retv = self.skQ.SKQuoteLib_EnterMonitor()
+            if retv != 0: return
+            print('連線成功')
 
-            while not self.done:
+            # 等待連線就緒
+            while not self.ready and not self.done:
                 time.sleep(1)
+                if not self.gui_mode:
+                    pythoncom.PumpWaitingMessages()
+
+            if self.done: return
+            print('連線就緒')
+
+            # 取得產品資訊
+            for stock in self.config['products']:
+                self.skQ.SKQuoteLib_RequestStocks(1, stock)
+
+            # 等待產品資訊蒐集完成
+            loaded = 0
+            total = len(self.config['products'])
+            while loaded < total and not self.done:
+                time.sleep(1)
+                if not self.gui_mode:
+                    pythoncom.PumpWaitingMessages()
+                loaded = len(self.stock_state)
+
+            if self.done: return
+            print('產品資訊載入完成')
+
+            # 接收訊息
+            for stock in self.config['products']:
+                if self.ticks_hook is not None:
+                    self.skQ.SKQuoteLib_RequestTicks(1, stock)
+                if self.kline_hook is not None:
+                    self.skQ.SKQuoteLib_RequestKLine(stock, 4, 1)
+
+            # 命令模式下等待 Ctrl+C
+            if not self.gui_mode:
+                while not self.done:
+                    pythoncom.PumpWaitingMessages()
+                    time.sleep(0.5)
+            print('監聽結束')
         except Exception as ex:
             print('init() 發生不預期狀況', flush=True)
             print(ex)
+
+    def stop(self):
+        if self.skQ is not None:
+            self.skQ.SKQuoteLib_LeaveMonitor()
+        else:
             self.done = True
 
-    def run(self):
-        ehQ = comtypes.client.GetEvents(skQ, self)
-        t = threading.Thread(target=self.pumper)
-        t.start()
-        asyncio \
-            .new_event_loop() \
-            .run_until_complete(self.monitor_quote())
-
-    def pumper(self):
-        while not self.done:
-            # print('fuck')
-            pythoncom.PumpWaitingMessages()
-            time.sleep(0.1)
-
-    def finish(self):
-        skQ.SKQuoteLib_LeaveMonitor()
-        self.done = True
-
     def OnConnection(self, nKind, nCode):
-        print('OnConnection(): nKind={}, nCode={}'.format(nKind, nCode), flush=True)
+        if nKind == 3001:
+            pass
         if nKind == 3003:
             self.ready = True
+        if nKind == 3002 or nKind == 3021:
+            print('斷線')
+            self.done = True
 
     def OnNotifyQuote(self, sMarketNo, sStockidx):
         pStock = sk.SKSTOCK()
-        skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
-        self.stock_state[pStock.bstrStockNo] = pStock
+        self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
+        if pStock.bstrStockNo not in self.stock_state:
+            self.stock_state[pStock.bstrStockNo] = pStock
 
     def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, nDate, nTimehms, nTimemillis, nBid, nAsk, nClose, nQty, nSimulate):
         pStock = sk.SKSTOCK()
-        skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
+        self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
         latest_state = self.stock_state[pStock.bstrStockNo]
-        if latest_state is None:
-            return
         ppow = math.pow(10, latest_state.sDecimal)
-        msg = '{} {} 買: {} 賣: {} 成: {} 單量: {} 總量: {} 現價: {}'.format(
-            pStock.bstrStockNo,
-            pStock.bstrStockName,
-            nAsk / ppow,
-            nBid / ppow,
-            nClose / ppow,
-            nQty,
-            latest_state.nTQty,
-            latest_state.nClose / ppow
-        )
-        print(msg, flush=True)
+
+        # 14:30:00 的紀錄不處理
+        if nTimehms > 133000:
+            return
+
+        # 時間字串化
+        s = nTimehms % 100
+        nTimehms /= 100
+        m = nTimehms % 100
+        nTimehms /= 100
+        h = nTimehms
+        timestr = '%02d:%02d:%02d.%03d' % (h, m, s, nTimemillis)
+
+        entry = {
+            'id': latest_state.bstrStockNo,
+            'name': latest_state.bstrStockName,
+            'time': timestr,
+            'ask': nAsk / ppow,
+            'bid': nBid / ppow,
+            'close': nClose / ppow,
+            'qty': nQty,
+            'volume': latest_state.nTQty
+        }
+        self.ticks_hook(entry)
 
     def OnNotifyKLineData(self, bstrStockNo, bstrData):
-        print(bstrStockNo)
-        print(bstrData)
+        # 群益 CSV 回傳值轉換為 Python dict 型態
+        pStock = self.stock_state[bstrStockNo]
+        cols = bstrData.split(', ')
+        entry = {
+            'id': bstrStockNo,
+            'name': pStock.bstrStockName,
+            'date': cols[0].replace('/', '-'),
+            'open': float(cols[1]),
+            'high': float(cols[2]),
+            'low': float(cols[3]),
+            'close': float(cols[4]),
+            'volume': int(cols[5])
+        }
+        self.kline_hook(entry)
