@@ -146,8 +146,8 @@ class QuoteReceiver():
     def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, nDate, nTimehms, nTimemillis, nBid, nAsk, nClose, nQty, nSimulate):
         pStock = sk.SKSTOCK()
         self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
-        latest_state = self.stock_state[pStock.bstrStockNo]
-        ppow = math.pow(10, latest_state.sDecimal)
+        self.stock_state[pStock.bstrStockNo] = pStock
+        ppow = math.pow(10, pStock.sDecimal)
 
         # 14:30:00 的紀錄不處理
         if nTimehms > 133000:
@@ -159,17 +159,17 @@ class QuoteReceiver():
         m = nTimehms % 100
         nTimehms /= 100
         h = nTimehms
-        timestr = '%02d:%02d:%02d.%03d' % (h, m, s, nTimemillis)
+        timestr = '%02d:%02d:%02d.%03d' % (h, m, s, nTimemillis//1000)
 
         entry = {
-            'id': latest_state.bstrStockNo,
-            'name': latest_state.bstrStockName,
+            'id': pStock.bstrStockNo,
+            'name': pStock.bstrStockName,
             'time': timestr,
             'ask': nAsk / ppow,
             'bid': nBid / ppow,
             'close': nClose / ppow,
             'qty': nQty,
-            'volume': latest_state.nTQty
+            'volume': pStock.nTQty
         }
         self.ticks_hook(entry)
 
