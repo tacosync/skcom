@@ -16,6 +16,7 @@ class QuoteReceiver():
         super().__init__()
         self.done = False
         self.ready = False
+        self.stopping = False
         self.valid_config = False
         self.gui_mode = gui_mode
         self.stock_state = {}
@@ -48,8 +49,9 @@ class QuoteReceiver():
         exit(0)
 
     def ctrl_c(self, sig, frm):
-        print('偵測到 Ctrl+C, 結束監聽')
-        self.stop()
+        if not self.done and not self.stopping:
+            print('偵測到 Ctrl+C, 結束監聽')
+            self.stop()
 
     def set_kline_hook(self, hook):
         self.kline_hook = hook
@@ -124,6 +126,7 @@ class QuoteReceiver():
 
     def stop(self):
         if self.skQ is not None:
+            self.stopping = True
             self.skQ.SKQuoteLib_LeaveMonitor()
         else:
             self.done = True
