@@ -6,6 +6,16 @@
 因此若 Windows 缺少 Visual Studio 2010 可轉發套件，註冊元件時就會發生錯誤，  
 在一台乾淨的 Windows 上照著[官方影片](https://www.youtube.com/watch?v=OgNjvXuBaoI)教學操作，肯定是會卡關的。
 
+### 使用環境安裝範例
+```
+(base) PS>python setup.py
+群益 API 元件已註冊, 版本: 2.13.16.0
+
+(base) PS>python setup.py
+群益 API 元件未註冊, 即將為您安裝
+安裝完成, 版本: 2.13.16.0
+```
+
 ### 使用 Ticks 監聽範例
 
 ```
