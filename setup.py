@@ -18,3 +18,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+    # print(quicksk.DepHelper.check_vsredist())
+    # quicksk.DepHelper.install_vsredist()
+    # print(quicksk.DepHelper.check_skcom())
+    # quicksk.DepHelper.install_skcom()
