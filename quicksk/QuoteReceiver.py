@@ -75,9 +75,12 @@ class QuoteReceiver():
             print('登入成功')
 
             # 建立報價連線
-            # 注意: comtypes.client.GetEvents() 一定要收回傳值, 即使這個回傳值沒用到, 如果不收回傳值會導致事件收不到
+            # 注意: comtypes.client.GetEvents() 有雷
+            # * 一定要收回傳值, 即使這個回傳值沒用到, 如果不收回傳值會導致事件收不到
+            # * 指定給 self.skH 會在程式結束時產生例外
+            # * 指定給 global skH 會在程式結束時產生例外
             self.skQ = comtypes.client.CreateObject(sk.SKQuoteLib, interface=sk.ISKQuoteLib)
-            self.skH = comtypes.client.GetEvents(self.skQ, self)
+            skH = comtypes.client.GetEvents(self.skQ, self)
             retv = self.skQ.SKQuoteLib_EnterMonitor()
             if retv != 0: return
             print('連線成功')
