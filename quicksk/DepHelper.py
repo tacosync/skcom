@@ -8,8 +8,6 @@ import zipfile
 import comtypes.client
 import requests
 from packaging import version
-import win32pipe
-import pywintypes
 
 ## 用 Power Shell 執行一個指令
 #  * 可以使用系統管理者執行
