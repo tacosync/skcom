@@ -68,10 +68,13 @@ class QuoteReceiver():
             signal.signal(signal.SIGINT, self.ctrl_c)
 
             # 登入
-            skC = comtypes.client.CreateObject(sk.SKCenterLib, interface=sk.ISKCenterLib)
-            skC.SKCenterLib_SetLogPath(self.log_path)
-            retc = skC.SKCenterLib_Login(self.config['account'], self.config['password'])
-            if retc != 0: return
+            self.skC = comtypes.client.CreateObject(sk.SKCenterLib, interface=sk.ISKCenterLib)
+            self.skC.SKCenterLib_SetLogPath(self.log_path)
+            nCode = self.skC.SKCenterLib_Login(self.config['account'], self.config['password'])
+            if nCode != 0:
+                # 沒插網路線會回傳 1001, 不會觸發 OnConnection
+                self.handleSkError('Login', nCode)
+                return
             print('登入成功')
 
             # 建立報價連線
@@ -81,8 +84,11 @@ class QuoteReceiver():
             # * 指定給 global skH 會在程式結束時產生例外
             self.skQ = comtypes.client.CreateObject(sk.SKQuoteLib, interface=sk.ISKQuoteLib)
             skH = comtypes.client.GetEvents(self.skQ, self)
-            retv = self.skQ.SKQuoteLib_EnterMonitor()
-            if retv != 0: return
+            nCode = self.skQ.SKQuoteLib_EnterMonitor()
+            if nCode != 0:
+                # 這裡拔網路線會得到 3022, 查表沒有對應訊息
+                self.handleSkError('Enter Monitor', nCode)
+                return
             print('連線成功')
 
             # 等待連線就緒
@@ -95,8 +101,10 @@ class QuoteReceiver():
             print('連線就緒')
 
             # 取得產品資訊
+            # TODO: 改用 GetStockByNo 比較理想
             for stock in self.config['products']:
-                self.skQ.SKQuoteLib_RequestStocks(1, stock)
+                nCode = self.skQ.SKQuoteLib_RequestStocks(1, stock)
+                # 這裡的 nCode 會回傳 list, e.g.: [0, 1]
 
             # 等待產品資訊蒐集完成
             loaded = 0
@@ -110,18 +118,26 @@ class QuoteReceiver():
             if self.done: return
             print('產品資訊載入完成')
 
+            # 這時候拔網路線疑似會陷入無窮迴圈
+            # time.sleep(3)
+
             # 接收訊息
             for stock in self.config['products']:
                 if self.ticks_hook is not None:
-                    self.skQ.SKQuoteLib_RequestTicks(1, stock)
+                    nCode = self.skQ.SKQuoteLib_RequestTicks(1, stock)
+                    if nCode != 0:
+                        self.handleSkError('Request Ticks', nCode)
                 if self.kline_hook is not None:
-                    self.skQ.SKQuoteLib_RequestKLine(stock, 4, 1)
+                    nCode = self.skQ.SKQuoteLib_RequestKLine(stock, 4, 1)
+                    if nCode != 0:
+                        self.handleSkError('Request KLine', nCode)
 
             # 命令模式下等待 Ctrl+C
             if not self.gui_mode:
                 while not self.done:
                     pythoncom.PumpWaitingMessages()
                     time.sleep(0.5)
+
             print('監聽結束')
         except Exception as ex:
             print('init() 發生不預期狀況', flush=True)
@@ -130,18 +146,32 @@ class QuoteReceiver():
     def stop(self):
         if self.skQ is not None:
             self.stopping = True
-            self.skQ.SKQuoteLib_LeaveMonitor()
+            nCode = self.skQ.SKQuoteLib_LeaveMonitor()
+            if nCode != 0:
+                self.handleSkError('EnterMonitor', nCode)
         else:
             self.done = True
 
+    def handleSkError(self, action, nCode):
+        msg = '執行動作 [%s] 時發生錯誤, 詳細原因: %s' % (action, self.skC.SKCenterLib_GetReturnCodeMessage(nCode))
+        print(msg)
+
     def OnConnection(self, nKind, nCode):
-        if nKind == 3001:
-            pass
+        if nCode != 0:
+            # 這裡的 nCode 沒有對應的文字訊息
+            action = '狀態變更 %d' % nKind
+            self.handleSkError(action, nCode)
+
+        # 3001 已連線
+        # 3002 正常斷線
+        # 3003 已就緒
+        # 3021 異常斷線
         if nKind == 3003:
             self.ready = True
         if nKind == 3002 or nKind == 3021:
-            print('斷線')
             self.done = True
+            print('斷線')
+
 
     def OnNotifyQuote(self, sMarketNo, sStockidx):
         pStock = sk.SKSTOCK()
