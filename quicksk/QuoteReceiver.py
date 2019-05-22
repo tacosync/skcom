@@ -12,6 +12,13 @@ import comtypes.client
 import comtypes.gen.SKCOMLib as sk
 
 class QuoteReceiver():
+    """
+    群益 API 報價接收器
+
+    參考文件 v2.13.16:
+      * 4-1 SKCenterLib (p.18)
+      * 4-4 SKQuoteLib (p.93)
+    """
 
     def __init__(self, gui_mode=False):
         super().__init__()
@@ -20,7 +27,6 @@ class QuoteReceiver():
         self.stopping = False
         self.valid_config = False
         self.gui_mode = gui_mode
-        # self.stock_state = {}
         self.log_path = os.path.expanduser('~\\.skcom\\logs')
         self.dst_conf = os.path.expanduser('~\\.skcom\\quicksk.json')
         self.tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\quicksk.json'
@@ -60,10 +66,14 @@ class QuoteReceiver():
         self.kline_days_limit = days_limit
         self.kline_hook = hook
 
-    def set_ticks_hook(self, hook):
+    def set_ticks_hook(self, hook, include_history=False):
         self.ticks_hook = hook
+        self.ticks_include_history = include_history
 
     def start(self):
+        """
+        開始接收報價
+        """
         if self.ticks_hook is None and self.kline_hook is None:
             print('沒有設定監聽項目')
             return
@@ -113,16 +123,29 @@ class QuoteReceiver():
                     # 發生這個問題不阻斷使用, 讓其他功能維持正常運作
                     print('Ticks 最多只能監聽 50 檔')
                 else:
-                    pn = 0
+                    # 參考文件: 4-4-3 (p.95)
+                    # 1. 這裡的回傳值是個 list [pageNo, nCode], 與官方文件不符
+                    # 2. 官方文件說 pn 值應介於 1-49, 每個 page 最多 100 檔
+                    # 3. 參數 psPageNo 指定 -1 會自動分配 page
+                    # 4. 參數 psPageNo 指定 50 會取消報價
+                    # 5. 如果沒請求, 總量值在 Ticks 事件觸發時也無法取得
+                    stock_list = ','.join(self.config['products'])
+                    (pageNo, nCode) = self.skQ.SKQuoteLib_RequestStocks(-1, stock_list)
+                    # print('stock page=%d' % pageNo)
+                    if nCode != 0:
+                        self.handleSkError('RequestStocks()', nCode)
+
                     for stock_no in self.config['products']:
-                        # 1. 這裡的回傳值是個 list, 與官方文件不符
-                        #    其中 retv[0], retv[1] 都是整數值, 不確定用途, 這裡先假設 retv[1] 作為狀態碼
-                        #    實際回傳: [0, 0]
-                        # 2. 參數 pn 在官方文件上表示一個 pn 只能對應一檔股票, 但實測發現可以一對多,
+                        # 參考文件: 4-4-6 (p.97)
+                        # 1. 這裡的回傳值是個 list [pageNo, nCode], 與官方文件不符
+                        # 2. 參數 psPageNo 在官方文件上表示一個 pn 只能對應一檔股票, 但實測發現可以一對多,
                         #    因為這樣, 實際上可能可以突破只能聽 50 檔的限制, 不過暫時先照文件友善使用 API
-                        #    pn=50 實測確實有取消 ticks 監聽作用, 所以要防止 pn=50
-                        (_, nCode) = self.skQ.SKQuoteLib_RequestTicks(pn, stock_no)
-                        pn += 1
+                        # 3. 參數 psPageNo 指定 -1 會自動分配 page, page 介於 0-49, 與 stock page 不同
+                        # 4. 參數 psPageNo 指定 50 會取消報價
+                        # 5. 如果只請求 ticks 而不請求 stocks, 總量會恆為 0
+                        # 6. Ticks page 與 Stock page 各為獨立的 page, 彼此沒有關係
+                        (pageNo, nCode) = self.skQ.SKQuoteLib_RequestTicks(-1, stock_no)
+                        # print('tick page=%d' % pageNo)
                         if nCode != 0:
                             self.handleSkError('RequestTicks()', nCode)
                     # print('Ticks 請求完成')
@@ -134,15 +157,13 @@ class QuoteReceiver():
 
                 # 載入股票代碼/名稱對應
                 for stock_no in self.config['products']:
-                    pStock = sk.SKSTOCK()
-                    # 這裡的回傳值是個 list, 與官方文件不符
-                    # 其中 retv[0] 是 pStock 物件, retv[1] 才是整數回傳值
-                    # 實際回傳: [<comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.SKSTOCK object at 0x0000026C91615F48>, 0]
-                    (_, nCode) = self.skQ.SKQuoteLib_GetStockByNo(stock_no, pStock)
+                    # 參考文件: 4-4-5 (p.97)
+                    # 1. 參數 pSKStock 可以省略
+                    # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
+                    (pStock, nCode) = self.skQ.SKQuoteLib_GetStockByNo(stock_no)
                     if nCode != 0:
                         self.handleSkError('GetStockByNo()', nCode)
                         return
-                    # self.stock_name[pStock.bstrStockNo] = pStock.bstrStockName
                     self.daily_kline[pStock.bstrStockNo] = {
                         'id': pStock.bstrStockNo,
                         'name': pStock.bstrStockName,
@@ -152,7 +173,11 @@ class QuoteReceiver():
 
                 # 請求日 K
                 for stock_no in self.config['products']:
+                    # 參考文件: 4-4-9 (p.99), 4-4-21 (p.105)
+                    # 1. 使用方式與文件相符
+                    # 2. 台股日 K 使用全盤與 AM 盤效果相同
                     nCode = self.skQ.SKQuoteLib_RequestKLine(stock_no, 4, 1)
+                    # nCode = self.skQ.SKQuoteLib_RequestKLineAM(stock_no, 4, 1, 1)
                     if nCode != 0:
                         self.handleSkError('RequestKLine()', nCode)
                 # print('日 K 請求完成')
@@ -169,6 +194,9 @@ class QuoteReceiver():
             print(ex)
 
     def stop(self):
+        """
+        停止接收報價
+        """
         if self.skQ is not None:
             self.stopping = True
             nCode = self.skQ.SKQuoteLib_LeaveMonitor()
@@ -178,15 +206,24 @@ class QuoteReceiver():
             self.done = True
 
     def handleSkError(self, action, nCode):
-        msg = '執行動作 [%s] 時發生錯誤, 詳細原因: %s' % (action, self.skC.SKCenterLib_GetReturnCodeMessage(nCode))
+        """
+        處理群益 API 元件錯誤
+        """
+        # 參考文件: 4-1-3 (p.19)
+        skmsg = self.skC.SKCenterLib_GetReturnCodeMessage(nCode)
+        msg = '執行動作 [%s] 時發生錯誤, 詳細原因: %s' % (action, skmsg)
         print(msg)
 
     def OnConnection(self, nKind, nCode):
+        """
+        接收連線狀態變更 4-4-a (p.107)
+        """
         if nCode != 0:
             # 這裡的 nCode 沒有對應的文字訊息
             action = '狀態變更 %d' % nKind
             self.handleSkError(action, nCode)
 
+        # 參考文件: 6. 代碼定義表 (p.170)
         # 3001 已連線
         # 3002 正常斷線
         # 3003 已就緒
@@ -197,9 +234,37 @@ class QuoteReceiver():
             self.done = True
             print('斷線')
 
-    def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, nDate, nTimehms, nTimemillis, nBid, nAsk, nClose, nQty, nSimulate):
-        pStock = sk.SKSTOCK()
-        self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
+    def OnNotifyQuote(self, sMarketNo, sStockidx):
+        """
+        接收報價更新 4-4-b (p.108)
+        僅用來確保總量值正常, 不處理這個事件
+        """
+        pass
+
+    def OnNotifyHistoryTicks(self, sMarketNo, sStockidx, nPtr, \
+                      nDate, nTimehms, nTimemillis, \
+                      nBid, nAsk, nClose, nQty, nSimulate):
+        """
+        接收當天回補的 Ticks 4-4-c (p.108)
+        """
+        if self.ticks_include_history:
+            self.OnNotifyTicks(
+                sMarketNo, sStockidx, nPtr,
+                nDate, nTimehms, nTimemillis,
+                nBid, nAsk, nClose, nQty, nSimulate
+            )
+
+    def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
+                      nDate, nTimehms, nTimemillis, \
+                      nBid, nAsk, nClose, nQty, nSimulate):
+        """
+        接收 Ticks 4-4-d (p.109)
+        """
+        # 參考文件: 4-4-4 (p.96)
+        # 1. pSKStock 參數可忽略
+        # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
+        # 3. 如果沒有 RequestStocks(), 這裡得到的總量恆為 0
+        (pStock, nCode) = self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
         ppow = math.pow(10, pStock.sDecimal)
 
         # 14:30:00 的紀錄不處理
@@ -218,23 +283,29 @@ class QuoteReceiver():
             'id': pStock.bstrStockNo,
             'name': pStock.bstrStockName,
             'time': timestr,
-            'ask': nAsk / ppow,
             'bid': nBid / ppow,
+            'ask': nAsk / ppow,
             'close': nClose / ppow,
             'qty': nQty,
             'volume': pStock.nTQty
         }
         self.ticks_hook(entry)
 
-    ## 群益 CSV 回傳值轉換為 Python dict 型態
     def OnNotifyKLineData(self, bstrStockNo, bstrData):
+        """
+        接收 K 線資料 (文件 4-4-f p.112)
+        """
         # 盤中時, 日 K 最後一筆 date 是昨天
-        # 收盤時, 日 K 最後一筆 date 是??
+        # 收盤時, 日 K 最後一筆 date 還是昨天
+        # 14:00, 待確認
+        # 15:00, 待確認
+        # 16:00, 待確認
+        # 17:00, 待確認
 
         # 寫入緩衝區與日數限制
         cols = bstrData.split(', ')
         this_date = cols[0].replace('/', '-')
-        entry = {
+        quote = {
             'date': this_date,
             'open': float(cols[1]),
             'high': float(cols[2]),
@@ -243,7 +314,7 @@ class QuoteReceiver():
             'volume': int(cols[5])
         }
         buffer = self.daily_kline[bstrStockNo]['quotes']
-        buffer.append(entry)
+        buffer.append(quote)
         if self.kline_days_limit > 0 and len(buffer) > self.kline_days_limit:
             buffer.pop(0)
 
@@ -251,3 +322,7 @@ class QuoteReceiver():
         if this_date == self.end_date:
             self.kline_hook(self.daily_kline[bstrStockNo])
             self.daily_kline[bstrStockNo] = None
+        else:
+            #if this_date > self.end_date:
+            #    print(this_date)
+            pass

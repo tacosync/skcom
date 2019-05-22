@@ -6,8 +6,8 @@ def on_receive_ticks_entry(ticks_entry):
             ticks_entry['id'],
             ticks_entry['name'],
             ticks_entry['time'],
-            ticks_entry['ask'],
             ticks_entry['bid'],
+            ticks_entry['ask'],
             ticks_entry['close'],
             ticks_entry['qty'],
             ticks_entry['volume']
