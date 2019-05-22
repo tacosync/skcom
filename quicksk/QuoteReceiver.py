@@ -146,8 +146,15 @@ class QuoteReceiver():
 
             # 接收日 K
             if self.kline_hook is not None:
-                # 日期範圍字串
-                self.end_date = (datetime.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+                # 取樣截止日
+                # 15:00 以前取樣到昨日
+                # 15:00 以後取樣到當日
+                n = datetime.today()
+                human_min = n.hour * 100 + n.minute
+                day_offset = 0
+                if human_min < 1500:
+                    day_offset = 1
+                self.end_date = (datetime.today() - timedelta(days=day_offset)).strftime('%Y-%m-%d')
 
                 # 載入股票代碼/名稱對應
                 for stock_no in self.config['products']:
@@ -348,15 +355,15 @@ class QuoteReceiver():
         """
         接收 K 線資料 (文件 4-4-f p.112)
         """
-        # 14:00, kline 會收到昨天
-        # 14:30, 待確認
-        # 15:00, kline 會收到當天
 
+        # 新版 K 線資料格式
+        # 日期        開           高          低          收          量
+        # 2019/05/21, 233.500000, 236.000000, 232.500000, 234.000000, 79971
         cols = bstrData.split(', ')
         this_date = cols[0].replace('/', '-')
 
         if self.daily_kline[bstrStockNo] is not None:
-            # 寫入緩衝區與日數限制處理
+            # 寫入緩衝區與交易日數限制處理
             quote = {
                 'date': this_date,
                 'open': float(cols[1]),
@@ -370,11 +377,14 @@ class QuoteReceiver():
             if self.kline_days_limit > 0 and len(buffer) > self.kline_days_limit:
                 buffer.pop(0)
 
-        # 取得最後一筆後觸發 hook, 並且清除緩衝區
-        if this_date == self.end_date:
-            self.kline_hook(self.daily_kline[bstrStockNo])
-            self.daily_kline[bstrStockNo] = None
-        else:
-            #if this_date > self.end_date:
-            #    print(this_date)
-            pass
+            # 取得最後一筆後觸發 hook, 並且清除緩衝區
+            if this_date == self.end_date:
+                self.kline_hook(self.daily_kline[bstrStockNo])
+                self.daily_kline[bstrStockNo] = None
+
+        # 除錯用, 確認當日資料產生時機後就刪除
+        # 14:00, kline 會收到昨天
+        # 14:30, 待確認
+        # 15:00, kline 會收到當天
+        if this_date > self.end_date:
+            print('當日資料已產生', this_date)
