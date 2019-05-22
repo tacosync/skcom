@@ -21,34 +21,42 @@ class QuoteReceiver():
     """
 
     def __init__(self, gui_mode=False):
-        super().__init__()
+        # 狀態屬性
         self.done = False
         self.ready = False
         self.stopping = False
-        self.valid_config = False
+
+        # 接收器設定屬性
         self.gui_mode = gui_mode
         self.log_path = os.path.expanduser('~\\.skcom\\logs')
         self.dst_conf = os.path.expanduser('~\\.skcom\\quicksk.json')
-        self.tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\quicksk.json'
+
+        # Ticks 處理用屬性
         self.ticks_hook = None
+        self.ticks_total = {}
+
+        # 日 K 處理用屬性
         self.kline_hook = None
         self.stock_name = {}
         self.daily_kline = {}
+
+        valid_config = False
+        tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\quicksk.json'
 
         if not os.path.isfile(self.dst_conf):
             # 產生 log 目錄
             if not os.path.isdir(self.log_path):
                 os.makedirs(self.log_path)
             # 複製設定檔範本
-            shutil.copy(self.tpl_conf, self.dst_conf)
+            shutil.copy(tpl_conf, self.dst_conf)
         else:
             # 載入設定檔
             with open(self.dst_conf, 'r') as cfgfile:
                 self.config = json.load(cfgfile)
                 if self.config['account'] != 'A123456789':
-                    self.valid_config = True
+                    valid_config = True
 
-        if not self.valid_config:
+        if not valid_config:
             self.prompt()
 
     def prompt(self):
@@ -123,18 +131,6 @@ class QuoteReceiver():
                     # 發生這個問題不阻斷使用, 讓其他功能維持正常運作
                     print('Ticks 最多只能監聽 50 檔')
                 else:
-                    # 參考文件: 4-4-3 (p.95)
-                    # 1. 這裡的回傳值是個 list [pageNo, nCode], 與官方文件不符
-                    # 2. 官方文件說 pn 值應介於 1-49, 每個 page 最多 100 檔
-                    # 3. 參數 psPageNo 指定 -1 會自動分配 page
-                    # 4. 參數 psPageNo 指定 50 會取消報價
-                    # 5. 如果沒請求, 總量值在 Ticks 事件觸發時也無法取得
-                    stock_list = ','.join(self.config['products'])
-                    (pageNo, nCode) = self.skQ.SKQuoteLib_RequestStocks(-1, stock_list)
-                    # print('stock page=%d' % pageNo)
-                    if nCode != 0:
-                        self.handleSkError('RequestStocks()', nCode)
-
                     for stock_no in self.config['products']:
                         # 參考文件: 4-4-6 (p.97)
                         # 1. 這裡的回傳值是個 list [pageNo, nCode], 與官方文件不符
@@ -142,8 +138,6 @@ class QuoteReceiver():
                         #    因為這樣, 實際上可能可以突破只能聽 50 檔的限制, 不過暫時先照文件友善使用 API
                         # 3. 參數 psPageNo 指定 -1 會自動分配 page, page 介於 0-49, 與 stock page 不同
                         # 4. 參數 psPageNo 指定 50 會取消報價
-                        # 5. 如果只請求 ticks 而不請求 stocks, 總量會恆為 0
-                        # 6. Ticks page 與 Stock page 各為獨立的 page, 彼此沒有關係
                         (pageNo, nCode) = self.skQ.SKQuoteLib_RequestTicks(-1, stock_no)
                         # print('tick page=%d' % pageNo)
                         if nCode != 0:
@@ -214,6 +208,22 @@ class QuoteReceiver():
         msg = '執行動作 [%s] 時發生錯誤, 詳細原因: %s' % (action, skmsg)
         print(msg)
 
+    def handleTicks(self, id, name, time, bid, ask, close, qty, vol):
+        """
+        處理當天回補 ticks 或即時 ticks
+        """
+        entry = {
+            'id': id,
+            'name': name,
+            'time': time,
+            'bid': bid,
+            'ask': ask,
+            'close': close,
+            'qty': qty,
+            'vol': vol
+        }
+        self.ticks_hook(entry)
+
     def OnConnection(self, nKind, nCode):
         """
         接收連線狀態變更 4-4-a (p.107)
@@ -234,42 +244,84 @@ class QuoteReceiver():
             self.done = True
             print('斷線')
 
-    def OnNotifyQuote(self, sMarketNo, sStockidx):
-        """
-        接收報價更新 4-4-b (p.108)
-        僅用來確保總量值正常, 不處理這個事件
-        """
-        pass
-
     def OnNotifyHistoryTicks(self, sMarketNo, sStockidx, nPtr, \
                       nDate, nTimehms, nTimemillis, \
                       nBid, nAsk, nClose, nQty, nSimulate):
         """
-        接收當天回補的 Ticks 4-4-c (p.108)
+        接收當天回補撮合 Ticks 4-4-c (p.108)
         """
+        # 忽略試撮回報
+        # 13:30:00 的最後一筆撮合, 即使收盤後也是透過一般 Ticks 觸發, 不會出現在回補資料中
+        # [2330 台積電] 時間:13:24:59.463 買:238.00 賣:238.50 成:238.50 單量:43 總量:31348
+        if nTimehms < 90000 or nTimehms >= 132500:
+            return
+
+        # 參考文件: 4-4-4 (p.96)
+        # 1. pSKStock 參數可忽略
+        # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
+        # 3. 如果沒有 RequestStocks(), 這裡得到的總量恆為 0
+        (pStock, nCode) = self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
+        if nCode != 0:
+            self.handleSkError('GetStockByIndex()', nCode)
+            return
+
+        # 累加總量
+        # 總量採用歷史與即時撮合累加最理想, 如果用 pStock.nTQty 會讓回補撮合的總量顯示錯誤
+        if pStock.bstrStockNo not in self.ticks_total:
+            self.ticks_total[pStock.bstrStockNo] = nQty
+        else:
+            self.ticks_total[pStock.bstrStockNo] += nQty
+
         if self.ticks_include_history:
-            self.OnNotifyTicks(
-                sMarketNo, sStockidx, nPtr,
-                nDate, nTimehms, nTimemillis,
-                nBid, nAsk, nClose, nQty, nSimulate
+            # 時間字串化
+            s = nTimehms % 100
+            nTimehms /= 100
+            m = nTimehms % 100
+            nTimehms /= 100
+            h = nTimehms
+            timestr = '%02d:%02d:%02d.%03d' % (h, m, s, nTimemillis//1000)
+
+            # 格式轉換
+            ppow = math.pow(10, pStock.sDecimal)
+            self.handleTicks(
+                pStock.bstrStockNo,
+                pStock.bstrStockName,
+                timestr,
+                nBid / ppow,
+                nAsk / ppow,
+                nClose / ppow,
+                nQty,
+                self.ticks_total[pStock.bstrStockNo] # pStock.nTQty
             )
 
     def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
                       nDate, nTimehms, nTimemillis, \
                       nBid, nAsk, nClose, nQty, nSimulate):
         """
-        接收 Ticks 4-4-d (p.109)
+        接收即時撮合 4-4-d (p.109)
         """
+        # 忽略試撮回報
+        # 盤中最後一筆與零股交易, 即使收盤也不會觸發歷史 Ticks, 這兩筆會在這裡觸發
+        # [2330 台積電] 時間:13:24:59.463 買:238.00 賣:238.50 成:238.50 單量:43 總量:31348
+        # [2330 台積電] 時間:13:30:00.000 買:238.00 賣:238.50 成:238.00 單量:3221 總量:34569
+        # [2330 台積電] 時間:14:30:00.000 買:0.00 賣:0.00 成:238.00 單量:18 總量:34587
+        if nTimehms < 90000 or (nTimehms >= 132500 and nTimehms < 133000):
+            return
+
         # 參考文件: 4-4-4 (p.96)
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
-        # 3. 如果沒有 RequestStocks(), 這裡得到的總量恆為 0
+        # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
         (pStock, nCode) = self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
-        ppow = math.pow(10, pStock.sDecimal)
-
-        # 14:30:00 的紀錄不處理
-        if nTimehms > 133000:
+        if nCode != 0:
+            self.handleSkError('GetStockByIndex()', nCode)
             return
+
+        # 累加總量
+        if pStock.bstrStockNo not in self.ticks_total:
+            self.ticks_total[pStock.bstrStockNo] = nQty
+        else:
+            self.ticks_total[pStock.bstrStockNo] += nQty
 
         # 時間字串化
         s = nTimehms % 100
@@ -279,44 +331,44 @@ class QuoteReceiver():
         h = nTimehms
         timestr = '%02d:%02d:%02d.%03d' % (h, m, s, nTimemillis//1000)
 
-        entry = {
-            'id': pStock.bstrStockNo,
-            'name': pStock.bstrStockName,
-            'time': timestr,
-            'bid': nBid / ppow,
-            'ask': nAsk / ppow,
-            'close': nClose / ppow,
-            'qty': nQty,
-            'volume': pStock.nTQty
-        }
-        self.ticks_hook(entry)
+        # 格式轉換
+        ppow = math.pow(10, pStock.sDecimal)
+        self.handleTicks(
+            pStock.bstrStockNo,
+            pStock.bstrStockName,
+            timestr,
+            nBid / ppow,
+            nAsk / ppow,
+            nClose / ppow,
+            nQty,
+            self.ticks_total[pStock.bstrStockNo]
+        )
 
     def OnNotifyKLineData(self, bstrStockNo, bstrData):
         """
         接收 K 線資料 (文件 4-4-f p.112)
         """
-        # 盤中時, 日 K 最後一筆 date 是昨天
-        # 收盤時, 日 K 最後一筆 date 還是昨天
-        # 14:00, 待確認
-        # 15:00, 待確認
-        # 16:00, 待確認
-        # 17:00, 待確認
+        # 14:00, kline 會收到昨天
+        # 14:30, 待確認
+        # 15:00, kline 會收到當天
 
-        # 寫入緩衝區與日數限制
         cols = bstrData.split(', ')
         this_date = cols[0].replace('/', '-')
-        quote = {
-            'date': this_date,
-            'open': float(cols[1]),
-            'high': float(cols[2]),
-            'low': float(cols[3]),
-            'close': float(cols[4]),
-            'volume': int(cols[5])
-        }
-        buffer = self.daily_kline[bstrStockNo]['quotes']
-        buffer.append(quote)
-        if self.kline_days_limit > 0 and len(buffer) > self.kline_days_limit:
-            buffer.pop(0)
+
+        if self.daily_kline[bstrStockNo] is not None:
+            # 寫入緩衝區與日數限制處理
+            quote = {
+                'date': this_date,
+                'open': float(cols[1]),
+                'high': float(cols[2]),
+                'low': float(cols[3]),
+                'close': float(cols[4]),
+                'volume': int(cols[5])
+            }
+            buffer = self.daily_kline[bstrStockNo]['quotes']
+            buffer.append(quote)
+            if self.kline_days_limit > 0 and len(buffer) > self.kline_days_limit:
+                buffer.pop(0)
 
         # 取得最後一筆後觸發 hook, 並且清除緩衝區
         if this_date == self.end_date:

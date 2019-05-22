@@ -10,11 +10,11 @@ def on_receive_ticks_entry(ticks_entry):
             ticks_entry['ask'],
             ticks_entry['close'],
             ticks_entry['qty'],
-            ticks_entry['volume']
+            ticks_entry['vol']
         )
     )
 
 if __name__ == '__main__':
     qrcv = quicksk.QuoteReceiver()
-    qrcv.set_ticks_hook(on_receive_ticks_entry)
+    qrcv.set_ticks_hook(on_receive_ticks_entry, True)
     qrcv.start()
