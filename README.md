@@ -8,7 +8,7 @@
 
 ### 使用環境安裝範例
 ```
-(base) PS>python setup.py
+(base) PS>python -m quicksk.samples.setup
 安裝 Visual C++ 2010 可轉發套件
 Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
 安裝與註冊群益 API 元件
@@ -18,7 +18,7 @@ Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
 ### 使用 Ticks 監聽範例
 
 ```
-(base) PS>python ticks.py
+(base) PS>python -m quicksk.samples.ticks
 登入成功
 連線成功
 連線就緒
@@ -30,7 +30,7 @@ Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
 ### 使用日 K 監聽範例
 
 ```
-(base) PS>python kline.py
+(base) PS>python -m quicksk.samples.kline
 登入成功
 連線成功
 連線就緒
