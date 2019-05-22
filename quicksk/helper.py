@@ -45,7 +45,9 @@ def ps_exec(cmd, admin=False):
         spcmd.append('-NoNewWindow')
         spcmd.append('-Wait')
 
-    completed = subprocess.run(spcmd, capture_output=True)
+    # Python 3.7 才能用這個寫法
+    # completed = subprocess.run(spcmd, capture_output=True)
+    completed = subprocess.run(spcmd, stdout=subprocess.PIPE)
     if completed.returncode == 0:
         return completed.stdout.decode('cp950')
 
@@ -63,7 +65,9 @@ def cmd_exec(cmd):
         tokens = cmd.split(' ')
 
     spcmd = ['cmd', '/C'] + tokens
-    completed = subprocess.run(spcmd, capture_output=True)
+    # Python 3.7 才能用這個寫法
+    # completed = subprocess.run(spcmd, capture_output=True)
+    completed = subprocess.run(spcmd, stdout=subprocess.PIPE)
     if completed.returncode == 0:
         # 因為被 cmd 包了一層, 不管怎樣都是 return 0
         return completed.stdout.decode('cp950')
