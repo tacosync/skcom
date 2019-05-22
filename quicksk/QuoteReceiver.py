@@ -5,6 +5,7 @@ import time
 import shutil
 import signal
 import os.path
+from datetime import datetime, timedelta
 
 import pythoncom
 import comtypes.client
@@ -26,6 +27,7 @@ class QuoteReceiver():
         self.ticks_hook = None
         self.kline_hook = None
         self.stock_name = {}
+        self.daily_kline = {}
 
         if not os.path.isfile(self.dst_conf):
             # 產生 log 目錄
@@ -54,7 +56,8 @@ class QuoteReceiver():
             print('偵測到 Ctrl+C, 結束監聽')
             self.stop()
 
-    def set_kline_hook(self, hook):
+    def set_kline_hook(self, hook, days_limit=20):
+        self.kline_days_limit = days_limit
         self.kline_hook = hook
 
     def set_ticks_hook(self, hook):
@@ -74,7 +77,7 @@ class QuoteReceiver():
             nCode = self.skC.SKCenterLib_Login(self.config['account'], self.config['password'])
             if nCode != 0:
                 # 沒插網路線會回傳 1001, 不會觸發 OnConnection
-                self.handleSkError('Login', nCode)
+                self.handleSkError('Login()', nCode)
                 return
             print('登入成功')
 
@@ -88,7 +91,7 @@ class QuoteReceiver():
             nCode = self.skQ.SKQuoteLib_EnterMonitor()
             if nCode != 0:
                 # 這裡拔網路線會得到 3022, 查表沒有對應訊息
-                self.handleSkError('Enter Monitor', nCode)
+                self.handleSkError('EnterMonitor()', nCode)
                 return
             print('連線成功')
 
@@ -121,11 +124,15 @@ class QuoteReceiver():
                         (_, nCode) = self.skQ.SKQuoteLib_RequestTicks(pn, stock_no)
                         pn += 1
                         if nCode != 0:
-                            self.handleSkError('Request Ticks', nCode)
+                            self.handleSkError('RequestTicks()', nCode)
                     # print('Ticks 請求完成')
 
             # 接收日 K
             if self.kline_hook is not None:
+                # 日期範圍字串
+                self.end_date = (datetime.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+                # 載入股票代碼/名稱對應
                 for stock_no in self.config['products']:
                     pStock = sk.SKSTOCK()
                     # 這裡的回傳值是個 list, 與官方文件不符
@@ -133,15 +140,21 @@ class QuoteReceiver():
                     # 實際回傳: [<comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.SKSTOCK object at 0x0000026C91615F48>, 0]
                     (_, nCode) = self.skQ.SKQuoteLib_GetStockByNo(stock_no, pStock)
                     if nCode != 0:
-                        self.handleSkError('Request Ticks', nCode)
+                        self.handleSkError('GetStockByNo()', nCode)
                         return
-                    self.stock_name[pStock.bstrStockNo] = pStock.bstrStockName
+                    # self.stock_name[pStock.bstrStockNo] = pStock.bstrStockName
+                    self.daily_kline[pStock.bstrStockNo] = {
+                        'id': pStock.bstrStockNo,
+                        'name': pStock.bstrStockName,
+                        'quotes': []
+                    }
                 # print('股票名稱載入完成')
 
+                # 請求日 K
                 for stock_no in self.config['products']:
                     nCode = self.skQ.SKQuoteLib_RequestKLine(stock_no, 4, 1)
                     if nCode != 0:
-                        self.handleSkError('Request KLine', nCode)
+                        self.handleSkError('RequestKLine()', nCode)
                 # print('日 K 請求完成')
 
             # 命令模式下等待 Ctrl+C
@@ -213,18 +226,28 @@ class QuoteReceiver():
         }
         self.ticks_hook(entry)
 
+    ## 群益 CSV 回傳值轉換為 Python dict 型態
     def OnNotifyKLineData(self, bstrStockNo, bstrData):
-        # 群益 CSV 回傳值轉換為 Python dict 型態
-        stock_name = self.stock_name[bstrStockNo]
+        # 盤中時, 日 K 最後一筆 date 是昨天
+        # 收盤時, 日 K 最後一筆 date 是??
+
+        # 寫入緩衝區與日數限制
         cols = bstrData.split(', ')
+        this_date = cols[0].replace('/', '-')
         entry = {
-            'id': bstrStockNo,
-            'name': stock_name,
-            'date': cols[0].replace('/', '-'),
+            'date': this_date,
             'open': float(cols[1]),
             'high': float(cols[2]),
             'low': float(cols[3]),
             'close': float(cols[4]),
             'volume': int(cols[5])
         }
-        self.kline_hook(entry)
+        buffer = self.daily_kline[bstrStockNo]['quotes']
+        buffer.append(entry)
+        if self.kline_days_limit > 0 and len(buffer) > self.kline_days_limit:
+            buffer.pop(0)
+
+        # 取得最後一筆後觸發 hook, 並且清除緩衝區
+        if this_date == self.end_date:
+            self.kline_hook(self.daily_kline[bstrStockNo])
+            self.daily_kline[bstrStockNo] = None
