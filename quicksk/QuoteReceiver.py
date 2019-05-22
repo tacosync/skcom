@@ -19,12 +19,13 @@ class QuoteReceiver():
         self.stopping = False
         self.valid_config = False
         self.gui_mode = gui_mode
-        self.stock_state = {}
+        # self.stock_state = {}
         self.log_path = os.path.expanduser('~\\.skcom\\logs')
         self.dst_conf = os.path.expanduser('~\\.skcom\\quicksk.json')
         self.tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\quicksk.json'
         self.ticks_hook = None
         self.kline_hook = None
+        self.stock_name = {}
 
         if not os.path.isfile(self.dst_conf):
             # 產生 log 目錄
@@ -100,37 +101,48 @@ class QuoteReceiver():
             if self.done: return
             print('連線就緒')
 
-            # 取得產品資訊
-            # TODO: 改用 GetStockByNo 比較理想
-            for stock in self.config['products']:
-                nCode = self.skQ.SKQuoteLib_RequestStocks(1, stock)
-                # 這裡的 nCode 會回傳 list, e.g.: [0, 1]
-
-            # 等待產品資訊蒐集完成
-            loaded = 0
-            total = len(self.config['products'])
-            while loaded < total and not self.done:
-                time.sleep(1)
-                if not self.gui_mode:
-                    pythoncom.PumpWaitingMessages()
-                loaded = len(self.stock_state)
-
-            if self.done: return
-            print('產品資訊載入完成')
-
             # 這時候拔網路線疑似會陷入無窮迴圈
             # time.sleep(3)
 
-            # 接收訊息
-            for stock in self.config['products']:
-                if self.ticks_hook is not None:
-                    nCode = self.skQ.SKQuoteLib_RequestTicks(1, stock)
+            # 接收 Ticks
+            if self.ticks_hook is not None:
+                if len(self.config['products']) > 50:
+                    # 發生這個問題不阻斷使用, 讓其他功能維持正常運作
+                    print('Ticks 最多只能監聽 50 檔')
+                else:
+                    pn = 0
+                    for stock_no in self.config['products']:
+                        # 1. 這裡的回傳值是個 list, 與官方文件不符
+                        #    其中 retv[0], retv[1] 都是整數值, 不確定用途, 這裡先假設 retv[1] 作為狀態碼
+                        #    實際回傳: [0, 0]
+                        # 2. 參數 pn 在官方文件上表示一個 pn 只能對應一檔股票, 但實測發現可以一對多,
+                        #    因為這樣, 實際上可能可以突破只能聽 50 檔的限制, 不過暫時先照文件友善使用 API
+                        #    pn=50 實測確實有取消 ticks 監聽作用, 所以要防止 pn=50
+                        (_, nCode) = self.skQ.SKQuoteLib_RequestTicks(pn, stock_no)
+                        pn += 1
+                        if nCode != 0:
+                            self.handleSkError('Request Ticks', nCode)
+                    # print('Ticks 請求完成')
+
+            # 接收日 K
+            if self.kline_hook is not None:
+                for stock_no in self.config['products']:
+                    pStock = sk.SKSTOCK()
+                    # 這裡的回傳值是個 list, 與官方文件不符
+                    # 其中 retv[0] 是 pStock 物件, retv[1] 才是整數回傳值
+                    # 實際回傳: [<comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.SKSTOCK object at 0x0000026C91615F48>, 0]
+                    (_, nCode) = self.skQ.SKQuoteLib_GetStockByNo(stock_no, pStock)
                     if nCode != 0:
                         self.handleSkError('Request Ticks', nCode)
-                if self.kline_hook is not None:
-                    nCode = self.skQ.SKQuoteLib_RequestKLine(stock, 4, 1)
+                        return
+                    self.stock_name[pStock.bstrStockNo] = pStock.bstrStockName
+                # print('股票名稱載入完成')
+
+                for stock_no in self.config['products']:
+                    nCode = self.skQ.SKQuoteLib_RequestKLine(stock_no, 4, 1)
                     if nCode != 0:
                         self.handleSkError('Request KLine', nCode)
+                # print('日 K 請求完成')
 
             # 命令模式下等待 Ctrl+C
             if not self.gui_mode:
@@ -172,17 +184,9 @@ class QuoteReceiver():
             self.done = True
             print('斷線')
 
-
-    def OnNotifyQuote(self, sMarketNo, sStockidx):
-        pStock = sk.SKSTOCK()
-        self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
-        if pStock.bstrStockNo not in self.stock_state:
-            self.stock_state[pStock.bstrStockNo] = pStock
-
     def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, nDate, nTimehms, nTimemillis, nBid, nAsk, nClose, nQty, nSimulate):
         pStock = sk.SKSTOCK()
         self.skQ.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx, pStock)
-        self.stock_state[pStock.bstrStockNo] = pStock
         ppow = math.pow(10, pStock.sDecimal)
 
         # 14:30:00 的紀錄不處理
@@ -211,11 +215,11 @@ class QuoteReceiver():
 
     def OnNotifyKLineData(self, bstrStockNo, bstrData):
         # 群益 CSV 回傳值轉換為 Python dict 型態
-        pStock = self.stock_state[bstrStockNo]
+        stock_name = self.stock_name[bstrStockNo]
         cols = bstrData.split(', ')
         entry = {
             'id': bstrStockNo,
-            'name': pStock.bstrStockName,
+            'name': stock_name,
             'date': cols[0].replace('/', '-'),
             'open': float(cols[1]),
             'high': float(cols[2]),
