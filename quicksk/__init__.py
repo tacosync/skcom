@@ -1,1 +1,5 @@
-from quicksk.QuoteReceiver import QuoteReceiver
+"""
+quicksk
+"""
+
+from quicksk.receiver import QuoteReceiver
