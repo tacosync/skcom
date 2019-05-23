@@ -12,6 +12,7 @@ import signal
 import time
 
 import pythoncom
+from comtypes import COMError
 import comtypes.client
 import comtypes.gen.SKCOMLib as sk
 
@@ -23,6 +24,7 @@ class QuoteReceiver():
       * 4-1 SKCenterLib (p.18)
       * 4-4 SKQuoteLib (p.93)
     """
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, gui_mode=False):
         # 狀態屬性
@@ -105,6 +107,8 @@ class QuoteReceiver():
         """
         開始接收報價
         """
+        # pylint: disable=too-many-branches
+
         if self.ticks_hook is None and self.kline_hook is None:
             print('沒有設定監聽項目')
             return
@@ -214,9 +218,10 @@ class QuoteReceiver():
                     time.sleep(0.5)
 
             print('監聽結束')
-        except Exception as ex:
+        except COMError as ex:
             print('init() 發生不預期狀況', flush=True)
             print(ex)
+        # TODO: 需要再補充其他類型的例外
 
     def stop(self):
         """
@@ -260,6 +265,8 @@ class QuoteReceiver():
         接收連線狀態變更 4-4-a (p.107)
         """
         # pylint: disable=invalid-name
+        # pylint: enable=invalid-name
+
         if nCode != 0:
             # 這裡的 nCode 沒有對應的文字訊息
             action = '狀態變更 %d' % nKind
@@ -282,7 +289,9 @@ class QuoteReceiver():
         """
         接收當天回補撮合 Ticks 4-4-c (p.108)
         """
-        # pylint: disable=unused-argument, invalid-name, too-many-arguments
+        # pylint: disable=invalid-name, unused-argument, too-many-arguments
+        # pylint: enable=invalid-name
+        # pylint: disable=too-many-locals
 
         # 忽略試撮回報
         # 13:30:00 的最後一筆撮合, 即使收盤後也是透過一般 Ticks 觸發, 不會出現在回補資料中
@@ -294,38 +303,38 @@ class QuoteReceiver():
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
         # 3. 如果沒有 RequestStocks(), 這裡得到的總量恆為 0
-        (pStock, nCode) = self.skq.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
-        if nCode != 0:
-            self.handle_sk_error('GetStockByIndex()', nCode)
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
+        if n_code != 0:
+            self.handle_sk_error('GetStockByIndex()', n_code)
             return
 
         # 累加總量
         # 總量採用歷史與即時撮合累加最理想, 如果用 pStock.nTQty 會讓回補撮合的總量顯示錯誤
-        if pStock.bstrStockNo not in self.ticks_total:
-            self.ticks_total[pStock.bstrStockNo] = nQty
+        if p_stock.bstrStockNo not in self.ticks_total:
+            self.ticks_total[p_stock.bstrStockNo] = nQty
         else:
-            self.ticks_total[pStock.bstrStockNo] += nQty
+            self.ticks_total[p_stock.bstrStockNo] += nQty
 
         if self.ticks_include_history:
             # 時間字串化
-            s = nTimehms % 100
+            ssdec = nTimehms % 100
             nTimehms /= 100
-            m = nTimehms % 100
+            mmdec = nTimehms % 100
             nTimehms /= 100
-            h = nTimehms
-            timestr = '%02d:%02d:%02d.%03d' % (h, m, s, nTimemillis//1000)
+            hhdec = nTimehms
+            timestr = '%02d:%02d:%02d.%03d' % (hhdec, mmdec, ssdec, nTimemillis//1000)
 
             # 格式轉換
-            ppow = math.pow(10, pStock.sDecimal)
+            ppow = math.pow(10, p_stock.sDecimal)
             self.handle_ticks(
-                pStock.bstrStockNo,
-                pStock.bstrStockName,
+                p_stock.bstrStockNo,
+                p_stock.bstrStockName,
                 timestr,
                 nBid / ppow,
                 nAsk / ppow,
                 nClose / ppow,
                 nQty,
-                self.ticks_total[pStock.bstrStockNo] # pStock.nTQty
+                self.ticks_total[p_stock.bstrStockNo] # p_stock.nTQty
             )
 
     def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
@@ -334,7 +343,9 @@ class QuoteReceiver():
         """
         接收即時撮合 4-4-d (p.109)
         """
-        # pylint: disable=unused-argument, invalid-name, too-many-arguments
+        # pylint: disable=invalid-name, unused-argument, too-many-arguments
+        # pylint: enable=invalid-name
+        # pylint: disable=too-many-locals
 
         # 忽略試撮回報
         # 盤中最後一筆與零股交易, 即使收盤也不會觸發歷史 Ticks, 這兩筆會在這裡觸發
@@ -348,42 +359,44 @@ class QuoteReceiver():
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
         # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
-        (pStock, nCode) = self.skq.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
-        if nCode != 0:
-            self.handle_sk_error('GetStockByIndex()', nCode)
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
+        if n_code != 0:
+            self.handle_sk_error('GetStockByIndex()', n_code)
             return
 
         # 累加總量
-        if pStock.bstrStockNo not in self.ticks_total:
-            self.ticks_total[pStock.bstrStockNo] = nQty
+        if p_stock.bstrStockNo not in self.ticks_total:
+            self.ticks_total[p_stock.bstrStockNo] = nQty
         else:
-            self.ticks_total[pStock.bstrStockNo] += nQty
+            self.ticks_total[p_stock.bstrStockNo] += nQty
 
         # 時間字串化
-        s = nTimehms % 100
+        ssdec = nTimehms % 100
         nTimehms /= 100
-        m = nTimehms % 100
+        mmdec = nTimehms % 100
         nTimehms /= 100
-        h = nTimehms
-        timestr = '%02d:%02d:%02d.%03d' % (h, m, s, nTimemillis//1000)
+        hhdec = nTimehms
+        timestr = '%02d:%02d:%02d.%03d' % (hhdec, mmdec, ssdec, nTimemillis//1000)
 
         # 格式轉換
-        ppow = math.pow(10, pStock.sDecimal)
+        ppow = math.pow(10, p_stock.sDecimal)
         self.handle_ticks(
-            pStock.bstrStockNo,
-            pStock.bstrStockName,
+            p_stock.bstrStockNo,
+            p_stock.bstrStockName,
             timestr,
             nBid / ppow,
             nAsk / ppow,
             nClose / ppow,
             nQty,
-            self.ticks_total[pStock.bstrStockNo]
+            self.ticks_total[p_stock.bstrStockNo]
         )
 
-    def OnNotifyKLineData(self, bstrStockNo, bstrData): # pylint: disable=invalid-name
+    def OnNotifyKLineData(self, bstrStockNo, bstrData):
         """
         接收 K 線資料 (文件 4-4-f p.112)
         """
+        # pylint: disable=invalid-name
+        # pylint: enable=invalid-name
 
         # 新版 K 線資料格式
         # 日期        開           高          低          收          量
