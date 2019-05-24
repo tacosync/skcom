@@ -3,7 +3,7 @@
 """
 from packaging import version
 
-import quicksk.helper
+import skcom.helper
 
 def main():
     """

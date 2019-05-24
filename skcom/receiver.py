@@ -35,7 +35,7 @@ class QuoteReceiver():
         # 接收器設定屬性
         self.gui_mode = gui_mode
         self.log_path = os.path.expanduser('~\\.skcom\\logs')
-        self.dst_conf = os.path.expanduser('~\\.skcom\\quicksk.json')
+        self.dst_conf = os.path.expanduser('~\\.skcom\\skcom.json')
 
         # Ticks 處理用屬性
         self.ticks_hook = None
@@ -53,7 +53,7 @@ class QuoteReceiver():
         self.skq = None
 
         valid_config = False
-        tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\quicksk.json'
+        tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\skcom.json'
 
         if not os.path.isfile(self.dst_conf):
             # 產生 log 目錄

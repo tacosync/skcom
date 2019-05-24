@@ -1,5 +1,5 @@
 群益證券聽牌套件 (skcom)
-=======================
+========================
 
 此套件用來降低群益證券 API (SKCOM.dll) 的使用門檻，目前可蒐集歷史與即時報價資訊，也提供輔助工具引導安裝 API 元件，
 透過輔助安裝工具會安裝 VC++ 可轉發套件中較為安全的版本，比依照官方文件安裝更理想
@@ -31,7 +31,7 @@
 .. code:: powershell
 
   (base) PS>pip install skcom
-  (base) PS>python -m quicksk.samples.setup
+  (base) PS>python -m skcom.samples.setup
   安裝 Visual C++ 2010 可轉發套件
   Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
   安裝與註冊群益 API 元件
@@ -42,7 +42,7 @@
 
 .. code:: powershell
 
-  (base) PS>python -m quicksk.samples.ticks
+  (base) PS>python -m skcom.samples.ticks
   登入成功
   連線成功
   連線就緒
@@ -66,7 +66,7 @@
 
 .. code:: powershell
 
-  (base) PS>python -m quicksk.samples.kline
+  (base) PS>python -m skcom.samples.kline
   登入成功
   連線成功
   連線就緒
