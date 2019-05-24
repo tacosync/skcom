@@ -1,6 +1,13 @@
+"""
+日 K 範例程式
+"""
+
 import quicksk
 
-def on_receive_kline_entry(kline):
+def on_receive_kline(kline):
+    """
+    處理日 K 資料
+    """
     print('[%s %s] 的日K資料' % (kline['id'], kline['name']))
     for quote in kline['quotes']:
         print(
@@ -14,10 +21,16 @@ def on_receive_kline_entry(kline):
             )
         )
 
-if __name__ == '__main__':
+def main():
+    """
+    main()
+    """
     qrcv = quicksk.QuoteReceiver()
     # 第二個參數是日數限制
     # * 0 不限制日數, 取得由史以來所有資料, 用於首次資料蒐集
     # * 預設值 20, 取得近月資料
-    qrcv.set_kline_hook(on_receive_kline_entry, 5)
+    qrcv.set_kline_hook(on_receive_kline, 5)
     qrcv.start()
+
+if __name__ == '__main__':
+    main()

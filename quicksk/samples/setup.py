@@ -1,7 +1,15 @@
-import quicksk.helper
+"""
+安裝程式範例
+"""
 from packaging import version
 
+import quicksk.helper
+
 def main():
+    """
+    安裝流程
+    """
+
     # 檢查與更新 Visual C++ 2010 (>= 10.0.40219.325)
     required_ver = version.parse('10.0.40219.325')
     current_ver = quicksk.helper.verof_vcredist()
