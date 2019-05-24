@@ -8,14 +8,11 @@
 
 表列以外的系統環境, 無法確保套件是否能穩定運作
 
-.. role:: raw-html(raw)
-   :format: html
-.. default-role:: raw-html
-`<span color="#ff0000">`
-**注意!!!**
-**此套件並非群益證券官方所開發, 使用上問題請透過 GitHub Issue 回報**
-**使用前必須至群益證券開戶, 並且開通 API 使用權限**
-`</span>`
+.. role:: red
+   :red:
+   **注意!!!**
+   **此套件並非群益證券官方所開發, 使用上問題請透過 GitHub Issue 回報**
+   **使用前必須至群益證券開戶, 並且開通 API 使用權限**
 
 功能
 ====
