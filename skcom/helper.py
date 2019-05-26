@@ -4,6 +4,7 @@ quicksk.helper
 
 import os.path
 import re
+import site
 import subprocess
 import time
 import winreg
@@ -165,6 +166,57 @@ def install_skcom():
     ps_exec(cmd, admin=True)
 
     return True
+
+def has_valid_mod():
+    r"""
+    檢測 comtypes\gen\SKCOMLib.py 是否已生成, 如果已生成則檢查是否連結到正確的 dll 檔
+
+    關於例外
+      import comtypes.gen.SKCOMLib as sk
+      ImportError: No module named 'comtypes.gen.SKCOMLib'
+    原因是 COM 對應的 comtypes\gen\{UUID}.py 檔案尚未產生
+      ...\site-packages\comtypes\gen\SKCOMLib.py
+      ...\site-packages\comtypes\gen\_75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.py
+    如果要重現這個問題, 只要把 comtypes 移除再安裝就會出現
+      pip uninstall comtypes
+      pip install comtypes
+    """
+    result = False
+
+    dirs = site.getsitepackages()
+    for dir in dirs:
+        if dir.endswith('site-packages'):
+            name_mod = dir + r'\comtypes\gen\SKCOMLib.py'
+            uuid_mod = dir + r'\comtypes\gen\_75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.py'
+            break
+
+    if os.path.isfile(name_mod):
+        result = True
+        '''
+        dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
+        import comtypes.gen.SKCOMLib as sk
+        if sk.typelib_path == dll_path:
+            result = True
+        else:
+            print(r'移除 site-packages\comtypes\gen\SKCOMLib.py, 因為連結的 DLL 不正確')
+            del comtypes.gen.SKCOMLib
+            del comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0
+            os.remove(name_mod)
+            os.remove(uuid_mod)
+
+        TODO: 如果跑了這一段, 會導致接下來的 comtypes.client.GetModule(dll_path) 沒有作用,
+              使用者會誤以為安裝完成, 在找到解決辦法之前, 先不導入這個設計
+        '''
+
+    return result
+
+def generate_mod():
+    r"""
+    產生 COM 元件的 comtypes.gen 對應模組
+    """
+    print(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
+    dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
+    comtypes.client.GetModule(dll_path)
 
 def download_file(url, save_path):
     """

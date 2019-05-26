@@ -2,7 +2,11 @@
 日 K 範例程式
 """
 
-import skcom
+#try:
+from skcom.receiver import QuoteReceiver
+#except ImportError:
+#    print('尚未生成 SKCOMLib.py 請先執行一次 python -m skcom.samples.setup')
+#    exit(1)
 
 def on_receive_kline(kline):
     """
@@ -25,7 +29,7 @@ def main():
     """
     main()
     """
-    qrcv = skcom.QuoteReceiver()
+    qrcv = QuoteReceiver()
     # 第二個參數是日數限制
     # * 0 不限制日數, 取得由史以來所有資料, 用於首次資料蒐集
     # * 預設值 20, 取得近月資料

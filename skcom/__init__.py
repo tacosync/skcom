@@ -1,5 +1,3 @@
 """
-quicksk
+skcom
 """
-
-from skcom.receiver import QuoteReceiver

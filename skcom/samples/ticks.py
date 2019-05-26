@@ -2,7 +2,11 @@
 撮合事件接收範例程式
 """
 
-import skcom
+try:
+    from skcom.receiver import QuoteReceiver
+except ImportError:
+    print('尚未生成 SKCOMLib.py 請先執行一次 python -m skcom.samples.setup')
+    exit(1)
 
 def on_receive_ticks_entry(ticks_entry):
     """
@@ -25,7 +29,7 @@ def main():
     """
     main()
     """
-    qrcv = skcom.QuoteReceiver()
+    qrcv = QuoteReceiver()
     # 第二個參數表示是否回補當日已過時的撮合事件
     qrcv.set_ticks_hook(on_receive_ticks_entry, True)
     qrcv.start()
