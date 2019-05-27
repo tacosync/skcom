@@ -48,6 +48,7 @@ class QuoteReceiver():
         self.daily_kline = {}
         self.end_date = ''
         self.kline_days_limit = 20
+        self.kline_last_mtime = 0
 
         self.skc = None
         self.skq = None
@@ -182,6 +183,9 @@ class QuoteReceiver():
                 day_offset = 0
                 if human_min < 1500:
                     day_offset = 1
+
+                # TODO: end_date 正確的值應該取最後交易日, 這個日期不一定是今天或昨天
+                #       錯誤的日期值會導致整批回報沒觸發
                 self.end_date = (datetime.today() - timedelta(days=day_offset)).strftime('%Y-%m-%d')
 
                 # 載入股票代碼/名稱對應
@@ -198,7 +202,7 @@ class QuoteReceiver():
                         'name': p_stock.bstrStockName,
                         'quotes': []
                     }
-                # print('股票名稱載入完成')
+                print('股票名稱載入完成')
 
                 # 請求日 K
                 for stock_no in self.config['products']:
@@ -209,11 +213,17 @@ class QuoteReceiver():
                     # n_code = self.skq.SKQuoteLib_RequestKLineAM(stock_no, 4, 1, 1)
                     if n_code != 0:
                         self.handle_sk_error('RequestKLine()', n_code)
-                # print('日 K 請求完成')
+                print('日 K 請求完成')
 
             # 命令模式下等待 Ctrl+C
             if not self.gui_mode:
                 while not self.done:
+                    if self.daily_kline is not None:
+                        passed = time.time() - self.kline_last_mtime
+                        if passed > 0.15:
+                            for stock_id in self.daily_kline:
+                                self.kline_hook(self.daily_kline[stock_id])
+                            self.daily_kline = None
                     pythoncom.PumpWaitingMessages() # pylint: disable=no-member
                     time.sleep(0.5)
 
@@ -403,6 +413,8 @@ class QuoteReceiver():
         # 2019/05/21, 233.500000, 236.000000, 232.500000, 234.000000, 79971
         cols = bstrData.split(', ')
         this_date = cols[0].replace('/', '-')
+        self.kline_last_mtime = time.time()
+        # print('%s %.5f' % (this_date, self.kline_last_mtime))
 
         if self.daily_kline[bstrStockNo] is not None:
             # 寫入緩衝區與交易日數限制處理
@@ -420,13 +432,13 @@ class QuoteReceiver():
                 buffer.pop(0)
 
             # 取得最後一筆後觸發 hook, 並且清除緩衝區
-            if this_date == self.end_date:
-                self.kline_hook(self.daily_kline[bstrStockNo])
-                self.daily_kline[bstrStockNo] = None
+            #if this_date == self.end_date:
+            #    self.kline_hook(self.daily_kline[bstrStockNo])
+            #    self.daily_kline[bstrStockNo] = None
 
         # 除錯用, 確認當日資料產生時機後就刪除
         # 14:00, kline 會收到昨天
         # 14:30, 待確認
         # 15:00, kline 會收到當天
-        if this_date > self.end_date:
-            print('當日資料已產生', this_date)
+        #if this_date > self.end_date:
+        #    print('當日資料已產生', this_date)

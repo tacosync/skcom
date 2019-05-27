@@ -12,7 +12,7 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.1.5',
+    version='0.1.6',
     description='群益證券聽牌套件',
     long_description=longdesc,
     packages=find_packages(),
