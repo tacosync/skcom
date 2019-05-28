@@ -183,22 +183,23 @@ def has_valid_mod():
     """
     result = False
 
-    dirs = site.getsitepackages()
-    for dir in dirs:
-        if dir.endswith('site-packages'):
-            name_mod = dir + r'\comtypes\gen\SKCOMLib.py'
-            uuid_mod = dir + r'\comtypes\gen\_75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.py'
+    pkgdirs = site.getsitepackages()
+    for pkgdir in pkgdirs:
+        if pkgdir.endswith('site-packages'):
+            name_mod = pkgdir + r'\comtypes\gen\SKCOMLib.py'
+            # uuid_mod = pkgdir + r'\comtypes\gen\_75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.py'
             break
 
     if os.path.isfile(name_mod):
         result = True
+        # pylint: disable=pointless-string-statement
         '''
-        dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
+        dll_path = os.path.expanduser(r'~\\.skcom\\lib\\SKCOM.dll')
         import comtypes.gen.SKCOMLib as sk
         if sk.typelib_path == dll_path:
             result = True
         else:
-            print(r'移除 site-packages\comtypes\gen\SKCOMLib.py, 因為連結的 DLL 不正確')
+            print(r'移除 site-packages\\comtypes\\gen\\SKCOMLib.py, 因為連結的 DLL 不正確')
             del comtypes.gen.SKCOMLib
             del comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0
             os.remove(name_mod)

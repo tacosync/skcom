@@ -1,21 +1,22 @@
 import subprocess
 import re
+import os
+import sys
 
-# TODO:
-'''
+# 檢查 Python 程式碼規範, 但容許 TODO 標記
 print('Lint *.py files.')
-cmd = 'pylint -f colorized ...'
-complete = subprocess.run(cmd, stdout=subprocess.PIPE)
-if complete.returncode != 0:
+cmd = 'pylint -f colorized -d fixme skcom'
+if os.system(cmd) != 0:
     exit(1)
-'''
 
+# 檢查 reStructureText 語法, 避免上傳後被打槍
 print('Check README.rst.')
 cmd = 'rstcheck README.rst'
 complete = subprocess.run(cmd, stdout=subprocess.PIPE)
 if complete.returncode != 0:
     exit(1)
 
+# 打包
 print('Build wheel.')
 cmd = 'python setup.py bdist_wheel --plat-name win_amd64'
 complete = subprocess.run(cmd, stdout=subprocess.PIPE)
@@ -34,8 +35,14 @@ for line in out_lines:
 if wheel == '':
     exit(1)
 
-print('Upload wheel file: %s.' % wheel)
-cmd = 'twine upload --repository testpypi --verbose ' + wheel
-complete = subprocess.run(cmd)
-if complete.returncode != 0:
+# 上傳
+if len(sys.argv) > 1 and sys.argv[1]:
+    mode = 'production'
+    cmd = 'twine upload --verbose ' + wheel
+else:
+    mode = 'testing'
+    cmd = 'twine upload --repository testpypi --verbose ' + wheel
+
+print('Upload wheel file: %s (%s mode).' % (wheel, mode))
+if os.system(cmd) != 0:
     exit(1)

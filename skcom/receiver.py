@@ -108,7 +108,7 @@ class QuoteReceiver():
         """
         開始接收報價
         """
-        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-branches,too-many-nested-blocks,too-many-statements
 
         if self.ticks_hook is None and self.kline_hook is None:
             print('沒有設定監聽項目')
