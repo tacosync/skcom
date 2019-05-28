@@ -2,11 +2,12 @@
 日 K 範例程式
 """
 
-#try:
-from skcom.receiver import QuoteReceiver
-#except ImportError:
-#    print('尚未生成 SKCOMLib.py 請先執行一次 python -m skcom.samples.setup')
-#    exit(1)
+try:
+    from skcom.receiver import QuoteReceiver
+except ImportError as ex:
+    print('尚未生成 SKCOMLib.py 請先執行一次 python -m skcom.samples.setup')
+    print('例外訊息:', ex)
+    exit(1)
 
 def on_receive_kline(kline):
     """
