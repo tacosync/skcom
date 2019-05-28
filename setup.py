@@ -12,8 +12,8 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.1.6',
-    description='群益證券聽牌套件',
+    version='0.1.9',
+    description='Get stock informations by Capital API.',
     long_description=longdesc,
     packages=find_packages(),
     url='https://github.com/virus-warnning/skcom',
@@ -27,6 +27,9 @@ setup(
         'pywin32 >= 1.0; platform_system=="Windows"',
         'packaging',
         'requests'
+    ],
+    platforms=[
+        'win_amd64'
     ],
     classifiers=[
         'Operating System :: Microsoft :: Windows :: Windows 10'
