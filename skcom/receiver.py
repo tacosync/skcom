@@ -289,9 +289,12 @@ class QuoteReceiver():
         # 3021 異常斷線
         if nKind == 3003:
             self.ready = True
-        if nKind in (3002, 3021):
+        if nKind == 3002:
             self.done = True
-            self.logger.info('斷線')
+            self.logger.info('結束連線')
+        if nKind == 3021:
+            self.done = True
+            self.logger.error('異常斷線')
 
     def OnNotifyHistoryTicks(self, sMarketNo, sStockidx, nPtr, \
                       nDate, nTimehms, nTimemillis, \
