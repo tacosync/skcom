@@ -34,8 +34,8 @@ class QuoteReceiver():
 
         # 接收器設定屬性
         self.gui_mode = gui_mode
-        self.log_path = os.path.expanduser('~\\.skcom\\logs')
-        self.dst_conf = os.path.expanduser('~\\.skcom\\skcom.json')
+        self.log_path = os.path.expanduser(r'~\.skcom\logs\capital')
+        self.dst_conf = os.path.expanduser(r'~\.skcom\skcom.json')
 
         # Ticks 處理用屬性
         self.ticks_hook = None
@@ -53,14 +53,14 @@ class QuoteReceiver():
         self.skc = None
         self.skq = None
 
-        valid_config = False
-        tpl_conf = os.path.dirname(os.path.realpath(__file__)) + '\\conf\\skcom.json'
+        # 產生 log 目錄
+        if not os.path.isdir(self.log_path):
+            os.makedirs(self.log_path)
 
+        valid_config = False
         if not os.path.isfile(self.dst_conf):
-            # 產生 log 目錄
-            if not os.path.isdir(self.log_path):
-                os.makedirs(self.log_path)
             # 複製設定檔範本
+            tpl_conf = os.path.dirname(os.path.realpath(__file__)) + r'\conf\skcom.json'
             shutil.copy(tpl_conf, self.dst_conf)
         else:
             # 載入設定檔
@@ -76,7 +76,6 @@ class QuoteReceiver():
         """
         設定檔使用提示
         """
-        # 提示
         print('請開啟設定檔，將帳號密碼改為您的證券帳號')
         print('設定檔路徑: ' + self.dst_conf)
         exit(0)
