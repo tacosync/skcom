@@ -2,6 +2,7 @@
 quicksk.helper
 """
 
+import logging
 import os.path
 import re
 import site
@@ -14,6 +15,8 @@ import comtypes.client
 from comtypes import COMError
 import requests
 from packaging import version
+
+logger = logging.getLogger('skcom')
 
 def ps_exec(cmd, admin=False):
     """
@@ -199,7 +202,7 @@ def has_valid_mod():
         if sk.typelib_path == dll_path:
             result = True
         else:
-            print(r'移除 site-packages\\comtypes\\gen\\SKCOMLib.py, 因為連結的 DLL 不正確')
+            logger.info(r'移除 site-packages\\comtypes\\gen\\SKCOMLib.py, 因為連結的 DLL 不正確')
             del comtypes.gen.SKCOMLib
             del comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0
             os.remove(name_mod)
@@ -215,7 +218,8 @@ def generate_mod():
     r"""
     產生 COM 元件的 comtypes.gen 對應模組
     """
-    print(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
+    global logger
+    logger.info(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
     dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
     comtypes.client.GetModule(dll_path)
 
