@@ -115,6 +115,13 @@ def install_vcredist():
     # 移除安裝包
     os.remove(vcdist)
 
+def remove_vcredist():
+    """
+    TODO: 移除 Visual C++ 2010 x64 Redistributable 10.0.40219.325
+    這部分先確定是否會阻斷, 如果不利自動化就放棄實作
+    """
+    pass
+
 def verof_skcom():
     """
     檢查群益 API 元件是否已註冊
@@ -170,6 +177,12 @@ def install_skcom():
 
     return True
 
+def remove_skcom():
+    """
+    TODO: 解除註冊與移除 skcom 元件
+    """
+    pass
+
 def has_valid_mod():
     r"""
     檢測 comtypes\gen\SKCOMLib.py 是否已生成, 如果已生成則檢查是否連結到正確的 dll 檔
@@ -222,6 +235,12 @@ def generate_mod():
     logger.info(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
     dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
     comtypes.client.GetModule(dll_path)
+
+def clean_mod():
+    r"""
+    TODO: 清除已產生的 site-packages\comtypes\gen\*.py
+    """
+    pass
 
 def download_file(url, save_path):
     """
