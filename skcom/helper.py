@@ -5,6 +5,7 @@ quicksk.helper
 import logging
 import os.path
 import re
+import shutil
 import site
 import subprocess
 import time
@@ -181,7 +182,21 @@ def remove_skcom():
     """
     TODO: 解除註冊與移除 skcom 元件
     """
-    pass
+    com_path = os.path.expanduser(r'~\.skcom\lib')
+    com_file = com_path + r'\SKCOM.dll'
+    if not os.path.isfile(com_file):
+        return
+
+    print('移除群益 API 元件')
+    print('  路徑: ' + com_path)
+    print('  解除註冊: ' + com_file)
+    cmd = 'regsvr32 /u ' + com_file
+    ps_exec(cmd, admin=True)
+
+    # 因為解除註冊是在另一個 process 執行而且不等待
+    # 所以這時候移除目錄會發生存取被拒
+    # print('  移除元件目錄')
+    # shutil.rmtree(com_path)
 
 def has_valid_mod():
     r"""
@@ -240,7 +255,27 @@ def clean_mod():
     r"""
     TODO: 清除已產生的 site-packages\comtypes\gen\*.py
     """
-    pass
+    pkgdirs = site.getsitepackages()
+    for pkgdir in pkgdirs:
+        if not pkgdir.endswith('site-packages'):
+            continue
+
+        gendir = pkgdir + r'\comtypes\gen'
+        if not os.path.isdir(gendir):
+            continue
+
+        print('移除 comtypes 套件自動生成檔案')
+        print('  路徑 ' + gendir)
+
+        for item in os.listdir(gendir):
+            if item.endswith('.py'):
+                print('  移除 %s' % item)
+                os.remove(gendir + '\\' + item)
+
+        cache_dir = gendir + '\\' + '__pycache__'
+        if os.path.isdir(cache_dir):
+            print('  移除 __pycache__')
+            shutil.rmtree(cache_dir)
 
 def download_file(url, save_path):
     """
