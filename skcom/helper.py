@@ -308,3 +308,6 @@ def check_dir(usr_path):
         os.makedirs(rel_path)
     abs_path = os.path.realpath(rel_path)
     return abs_path
+
+def get_dll_abs_path():
+    return os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
