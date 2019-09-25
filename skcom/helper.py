@@ -156,11 +156,11 @@ def verof_skcom():
 
     return version.parse(skcom_ver)
 
-def install_skcom():
+def install_skcom(install_ver):
     """
     安裝群益 API 元件
     """
-    url = 'https://www.capital.com.tw/Service2/download/api_zip/CapitalAPI_2.13.16.zip'
+    url = 'https://www.capital.com.tw/Service2/download/api_zip/CapitalAPI_%s.zip' % install_ver
 
     # 建立元件目錄
     com_path = check_dir(r'~\.skcom\lib')
