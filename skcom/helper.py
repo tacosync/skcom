@@ -2,7 +2,6 @@
 quicksk.helper
 """
 
-import logging
 import os.path
 import re
 import shutil
@@ -17,7 +16,18 @@ from comtypes import COMError
 import requests
 from packaging import version
 
-logger = logging.getLogger('skcom')
+
+_silent = False
+
+def set_silent(v):
+    assert(type(v) != 'bool')
+
+    global _silent
+    _silent = v
+
+def console_print(s):
+    if not _silent:
+        print(s)
 
 def ps_exec(cmd, admin=False):
     """
@@ -187,15 +197,15 @@ def remove_skcom():
     if not os.path.isfile(com_file):
         return
 
-    print('移除群益 API 元件')
-    print('  路徑: ' + com_path)
-    print('  解除註冊: ' + com_file)
+    console_print('移除群益 API 元件')
+    console_print('  路徑: ' + com_path)
+    console_print('  解除註冊: ' + com_file)
     cmd = 'regsvr32 /u ' + com_file
     ps_exec(cmd, admin=True)
 
     # 因為解除註冊是在另一個 process 執行而且不等待
     # 所以這時候移除目錄會發生存取被拒
-    # print('  移除元件目錄')
+    # console_print('  移除元件目錄')
     # shutil.rmtree(com_path)
 
 def has_valid_mod():
@@ -230,7 +240,7 @@ def has_valid_mod():
         if sk.typelib_path == dll_path:
             result = True
         else:
-            logger.info(r'移除 site-packages\\comtypes\\gen\\SKCOMLib.py, 因為連結的 DLL 不正確')
+            console_print('移除 site-packages\\comtypes\\gen\\SKCOMLib.py, 因為連結的 DLL 不正確')
             del comtypes.gen.SKCOMLib
             del comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0
             os.remove(name_mod)
@@ -246,8 +256,7 @@ def generate_mod():
     r"""
     產生 COM 元件的 comtypes.gen 對應模組
     """
-    global logger
-    logger.info(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
+    console_print('生成 site-packages\comtypes\gen\SKCOMLib.py')
     dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
     comtypes.client.GetModule(dll_path)
 
@@ -264,17 +273,17 @@ def clean_mod():
         if not os.path.isdir(gendir):
             continue
 
-        print('移除 comtypes 套件自動生成檔案')
-        print('  路徑 ' + gendir)
+        console_print('移除 comtypes 套件自動生成檔案')
+        console_print('  路徑 ' + gendir)
 
         for item in os.listdir(gendir):
             if item.endswith('.py'):
-                print('  移除 %s' % item)
+                console_print('  移除 %s' % item)
                 os.remove(gendir + '\\' + item)
 
         cache_dir = gendir + '\\' + '__pycache__'
         if os.path.isdir(cache_dir):
-            print('  移除 __pycache__')
+            console_print('  移除 __pycache__')
             shutil.rmtree(cache_dir)
 
 def download_file(url, save_path):
