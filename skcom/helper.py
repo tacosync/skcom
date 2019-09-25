@@ -17,16 +17,16 @@ import requests
 from packaging import version
 
 
-_silent = False
+_silent_mode = False
 
 def set_silent(v):
     assert(type(v) != 'bool')
 
-    global _silent
-    _silent = v
+    global _silent_mode
+    _silent_mode = v
 
 def console_print(s):
-    if not _silent:
+    if not _silent_mode:
         print(s)
 
 def ps_exec(cmd, admin=False):
@@ -50,15 +50,13 @@ def ps_exec(cmd, admin=False):
         spcmd.append('-ArgumentList')
         spcmd.append(args)
 
+    spcmd.append('-NoNewWindow')
+    spcmd.append('-Wait')
     # 用系統管理員身分執行
     if admin:
         # TODO: 需要想一下系統管理員模式怎麼取得 stdout
         spcmd.append('-Verb')
         spcmd.append('RunAs')
-    else:
-        # 接收 stdout
-        spcmd.append('-NoNewWindow')
-        spcmd.append('-Wait')
 
     # Python 3.7 才能用這個寫法
     # completed = subprocess.run(spcmd, capture_output=True)
@@ -203,10 +201,8 @@ def remove_skcom():
     cmd = 'regsvr32 /u ' + com_file
     ps_exec(cmd, admin=True)
 
-    # 因為解除註冊是在另一個 process 執行而且不等待
-    # 所以這時候移除目錄會發生存取被拒
-    # console_print('  移除元件目錄')
-    # shutil.rmtree(com_path)
+    console_print('  移除元件目錄')
+    shutil.rmtree(com_path)
 
 def has_valid_mod():
     r"""
