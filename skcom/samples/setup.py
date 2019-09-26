@@ -24,11 +24,11 @@ def main():
     print('Visual C++ 2010 可轉發套件已安裝, 版本:', current_ver)
 
     # 檢查與更新 API 元件 (>= 2.13.11)
-    required_ver = version.parse('2.13.11')
+    required_ver = version.parse('2.13.16')
     current_ver = skcom.helper.verof_skcom()
     if current_ver < required_ver:
         print('安裝與註冊群益 API 元件')
-        skcom.helper.install_skcom()
+        skcom.helper.install_skcom('2.13.16')
         current_ver = skcom.helper.verof_skcom()
 
     print('群益 API 元件已安裝, 版本:', current_ver)
