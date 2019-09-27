@@ -17,7 +17,13 @@
 功能
 ====
 
-0.9.0 首次發布
+0.9.2 加強對新版元件的相容性
+
+- 解決 2.13.17+ 元件無法登入的問題
+- 解決 2.13.18 自動安裝失敗問題
+- 環境清除工具
+
+0.9.1 首次發布
 
 - 蒐集日 K 資料
 - 接收即時撮合結果
@@ -35,7 +41,32 @@
   安裝 Visual C++ 2010 可轉發套件
   Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
   安裝與註冊群益 API 元件
-  群益 API 元件已安裝, 版本: 2.13.16.0
+  群益 API 元件已安裝, 版本: 2.13.18.0
+  生成 site-packages\comtypes\gen\SKCOMLib.py
+  群益 API 元件模組已生成
+
+如果要升級群益 API 元件，建議先使用環境清除工具再重新安裝，避免 comtypes 自動生成碼與元件版本不相容
+
+.. code:: powershell
+
+  (base) PS>python -m skcom.samples.clean
+  移除 comtypes 套件自動生成檔案
+    路徑 C:\Users\Unknown\AppData\Local\Programs\Python\Python37\lib\site-packages\comtypes\gen
+    移除 Scripting.py
+    移除 SKCOMLib.py
+    移除 stdole.py
+    移除 _00020430_0000_0000_C000_000000000046_0_2_0.py
+    移除 _420B2830_E718_11CF_893D_00A0C9054228_0_1_0.py
+    移除 _75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.py
+    移除 __pycache__
+  移除群益 API 元件
+    路徑: C:\Users\Unknown\.skcom\lib
+    解除註冊: C:\Users\Unknown\.skcom\lib\SKCOM.dll
+    移除元件目錄
+
+  (base) PS>python -m skcom.samples.setup
+  ...
+
 
 使用 Ticks 監聽範例
 ===================
