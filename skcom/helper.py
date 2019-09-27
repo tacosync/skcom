@@ -174,7 +174,7 @@ def install_skcom(install_ver):
     with zipfile.ZipFile(file_path, 'r') as archive:
         for name437 in archive.namelist():
             name950 = name437.encode('cp437').decode('cp950')
-            if re.match(r'.+元件/x64/.+\.dll', name950):
+            if re.search(r'元件/x64/.+\.dll$', name950):
                 dest_path = r'%s\%s' % (com_path, name950.split('/')[-1])
                 with archive.open(name437, 'r') as cmpf, \
                      open(dest_path, 'wb') as extf:
