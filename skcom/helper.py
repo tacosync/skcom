@@ -17,17 +17,24 @@ import requests
 from packaging import version
 
 
-_silent_mode = False
+_SLIENT_MODE = False
 
-def set_silent(v):
-    assert(type(v) != 'bool')
+def set_silent(mode):
+    """
+    控制 console_print 是否輸出
+    """
+    # pylint: disable=superfluous-parens, unidiomatic-typecheck,global-statement
+    assert(type(mode) != 'bool')
 
-    global _silent_mode
-    _silent_mode = v
+    global _SLIENT_MODE
+    _SLIENT_MODE = mode
 
-def console_print(s):
-    if not _silent_mode:
-        print(s)
+def console_print(msg):
+    """
+    可以控制開關的 console 輸出
+    """
+    if not _SLIENT_MODE:
+        print(msg)
 
 def ps_exec(cmd, admin=False):
     """
@@ -129,7 +136,6 @@ def remove_vcredist():
     TODO: 移除 Visual C++ 2010 x64 Redistributable 10.0.40219.325
     這部分先確定是否會阻斷, 如果不利自動化就放棄實作
     """
-    pass
 
 def verof_skcom():
     """
@@ -252,7 +258,7 @@ def generate_mod():
     r"""
     產生 COM 元件的 comtypes.gen 對應模組
     """
-    console_print('生成 site-packages\comtypes\gen\SKCOMLib.py')
+    console_print(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
     dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
     comtypes.client.GetModule(dll_path)
 
@@ -310,4 +316,7 @@ def check_dir(usr_path):
     return abs_path
 
 def get_dll_abs_path():
+    """
+    取得 SKCOM.dll 絕對路徑
+    """
     return os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')

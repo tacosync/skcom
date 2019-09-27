@@ -120,10 +120,10 @@ class QuoteReceiver():
             signal.signal(signal.SIGINT, self.ctrl_c)
 
             # 登入
+            self.skr = comtypes.client.CreateObject(sk.SKReplyLib, interface=sk.ISKReplyLib) # pylint: disable=invalid-name, no-member
+            skh0 = comtypes.client.GetEvents(self.skr, self) # pylint: disable=unused-variable
             self.skc = comtypes.client.CreateObject(sk.SKCenterLib, interface=sk.ISKCenterLib) # pylint: disable=invalid-name, no-member
             self.skc.SKCenterLib_SetLogPath(self.log_path)
-            self.skr = comtypes.client.CreateObject(sk.SKReplyLib, interface=sk.ISKReplyLib)
-            comtypes.client.GetEvents(self.skr, self)
             n_code = self.skc.SKCenterLib_Login(self.config['account'], self.config['password'])
             if n_code != 0:
                 # 沒插網路線會回傳 1001, 不會觸發 OnConnection
@@ -137,7 +137,7 @@ class QuoteReceiver():
             # * 指定給 self.skH 會在程式結束時產生例外
             # * 指定給 global skH 會在程式結束時產生例外
             self.skq = comtypes.client.CreateObject(sk.SKQuoteLib, interface=sk.ISKQuoteLib) # pylint: disable=invalid-name, no-member
-            skh = comtypes.client.GetEvents(self.skq, self) # pylint: disable=unused-variable
+            skh1 = comtypes.client.GetEvents(self.skq, self) # pylint: disable=unused-variable
             n_code = self.skq.SKQuoteLib_EnterMonitor()
             if n_code != 0:
                 # 這裡拔網路線會得到 3022, 查表沒有對應訊息
@@ -299,8 +299,18 @@ class QuoteReceiver():
             self.done = True
             self.logger.error('異常斷線')
 
-    def OnReplyMessage(self, bstrUserID, bstrMessage, sConfirmCode=0xFFFF):
-        print(bstrMessage);
+    def OnReplyMessage(self, bstrUserID, bstrMessage):
+        """
+        處理登入時的公告訊息
+        """
+        # pylint: disable=invalid-name, unused-argument, no-self-use
+        # TODO: 用參數控制人工回答或自動回答
+        print('收到系統公告:')
+        print('  %s' % bstrMessage)
+        print('回答已讀嗎? [y/n]: ', end='')
+        answer = input()
+        if answer == 'y':
+            return 0xffff
         return 0
 
     def OnNotifyHistoryTicks(self, sMarketNo, sStockidx, nPtr, \

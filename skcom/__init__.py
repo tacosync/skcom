@@ -1,6 +1,8 @@
 """
 skcom
 """
+# pylint: disable=invalid-name
+
 import os.path
 import logging.config
 
