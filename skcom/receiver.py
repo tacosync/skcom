@@ -53,6 +53,7 @@ class QuoteReceiver():
 
         self.skc = None
         self.skq = None
+        self.skr = None
         self.logger = logging.getLogger('skcom')
 
         # 產生 log 目錄
@@ -121,6 +122,8 @@ class QuoteReceiver():
             # 登入
             self.skc = comtypes.client.CreateObject(sk.SKCenterLib, interface=sk.ISKCenterLib) # pylint: disable=invalid-name, no-member
             self.skc.SKCenterLib_SetLogPath(self.log_path)
+            self.skr = comtypes.client.CreateObject(sk.SKReplyLib, interface=sk.ISKReplyLib)
+            comtypes.client.GetEvents(self.skr, self)
             n_code = self.skc.SKCenterLib_Login(self.config['account'], self.config['password'])
             if n_code != 0:
                 # 沒插網路線會回傳 1001, 不會觸發 OnConnection
@@ -295,6 +298,10 @@ class QuoteReceiver():
         if nKind == 3021:
             self.done = True
             self.logger.error('異常斷線')
+
+    def OnReplyMessage(self, bstrUserID, bstrMessage, sConfirmCode=0xFFFF):
+        print(bstrMessage);
+        return 0
 
     def OnNotifyHistoryTicks(self, sMarketNo, sStockidx, nPtr, \
                       nDate, nTimehms, nTimemillis, \
