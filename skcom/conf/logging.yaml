@@ -1,0 +1,27 @@
+version: 1
+disable_existing_loggers: true
+formatters:
+  standard:
+    datefmt: '%Y-%m-%d %H:%M:%S'
+    format: '[%(asctime)s] %(levelname)-7s | %(message)s'
+  simple:
+    datefmt: '%H:%M:%S'
+    format: "[%(asctime)s] %(levelname)-7s | %(message)s"
+handlers:
+  logfile:
+    level: WARNING
+    formatter: standard
+    class: logging.handlers.RotatingFileHandler
+    filename: ~/.skcom/logs/skcom.log
+  console:
+    level: DEBUG
+    formatter: simple
+    class: logging.StreamHandler
+    stream: ext://sys.stdout
+loggers:
+  skcom:
+    level: DEBUG
+    handlers:
+      - logfile
+      - console
+    propagate: yes
