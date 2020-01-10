@@ -57,13 +57,14 @@ def ps_exec(cmd, admin=False):
         spcmd.append('-ArgumentList')
         spcmd.append(args)
 
-    spcmd.append('-NoNewWindow')
     spcmd.append('-Wait')
     # 用系統管理員身分執行
     if admin:
         # TODO: 需要想一下系統管理員模式怎麼取得 stdout
         spcmd.append('-Verb')
         spcmd.append('RunAs')
+    else:
+        spcmd.append('-NoNewWindow')
 
     # Python 3.7 才能用這個寫法
     # completed = subprocess.run(spcmd, capture_output=True)
