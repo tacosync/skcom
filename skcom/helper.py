@@ -3,6 +3,7 @@ quicksk.helper
 """
 
 import os.path
+import random
 import re
 import shutil
 import site
@@ -36,64 +37,77 @@ def console_print(msg):
     if not _SLIENT_MODE:
         print(msg)
 
-def ps_exec(cmd, admin=False):
+def ps_exec(cmd, admin_priv=False):
     """
-    用 Power Shell 執行一個指令
-    * 可以使用系統管理者執行
-    * 參數含有空白時會發生問題, 例如 tasklist 的 /fi
+    使用 Windows PowerShell Start-Process 執行程式,
+    回傳 STDOUT, 並且支援以系統管理員身分執行,
+    注意 STDOUT 重導後, 換行字元會是 \n 而不是 \r\n
     """
-    if isinstance(cmd, list):
-        tokens = cmd
-    else:
-        tokens = cmd.split(' ')
-    prog = tokens[0]
-    spcmd = [
-        'powershell.exe', 'Start-Process',
-        '-FilePath', prog
-    ]
-    if len(tokens) > 1:
-        quoted_tokens = list(map(lambda i: '"%s"' % i, tokens[1:]))
-        args = ','.join(quoted_tokens)
-        spcmd.append('-ArgumentList')
-        spcmd.append(args)
 
-    spcmd.append('-Wait')
-    # 用系統管理員身分執行
-    if admin:
-        # TODO: 需要想一下系統管理員模式怎麼取得 stdout
-        spcmd.append('-Verb')
-        spcmd.append('RunAs')
-    else:
-        spcmd.append('-NoNewWindow')
+    # 產生隨機檔名, 用來儲存 stdout
+    existed = True
+    while existed:
+        fsn = random.randint(0, 65535)
+        stdout_path = os.path.expanduser(r'~\stdout-%04x.txt' % fsn)
+        existed = os.path.isfile(stdout_path)
+    try:
+        open(stdout_path, 'w').close()
+    except:
+        return (-1, '')
 
-    # Python 3.7 才能用這個寫法
-    # completed = subprocess.run(spcmd, capture_output=True)
-    completed = subprocess.run(spcmd, stdout=subprocess.PIPE)
+    # 組織執行指令
+    if admin_priv:
+        # 產生底層參數
+        deep_args = list(map(lambda n: "'{}'".format(n), cmd[1:]))
+        deep_args = ','.join(deep_args)
+
+        # 產生底層指令與表層參數
+        surface_args = [
+            'Start-Process',
+            '-FilePath', cmd[0],
+            '-ArgumentList', deep_args,
+            '-RedirectStandardOutput', stdout_path,
+            '-NoNewWindow'
+        ]
+        surface_args = list(map(lambda n: '"{}"'.format(n), surface_args))
+        surface_args = ','.join(surface_args)
+
+        # 產生表層指令
+        cmd = [
+            'powershell.exe', 'Start-Process',
+            '-FilePath', 'powershell.exe',
+            '-ArgumentList', surface_args,
+            '-Verb', 'RunAs',
+            '-Wait'
+        ]
+    else:
+        # 產生表層參數
+        surface_args = list(map(lambda n: '"{}"'.format(n), cmd[1:]))
+        surface_args = ','.join(surface_args)
+
+        # 產生完整執行程式指令
+        cmd = [
+            'powershell.exe', 'Start-Process',
+            '-FilePath', cmd[0],
+            '-ArgumentList', surface_args,
+            '-RedirectStandardOutput', stdout_path,
+            '-NoNewWindow',
+            '-Wait'
+        ]
+        print(cmd)
+        exit(1)
+
+    # 取 stdout, stderr
+    stdout_content = ''
+    completed = subprocess.run(cmd)
     if completed.returncode == 0:
-        return completed.stdout.decode('cp950')
+        with open(stdout_path, 'r') as stdout_file:
+            stdout_content = stdout_file.read()
 
-    return None
+    # 移除暫存檔
+    os.remove(stdout_path)
 
-def cmd_exec(cmd):
-    """
-    用 cmd 執行一個指令
-    * 適用指令較廣泛
-    * 無法使用系統管理者身分執行
-    """
-    if isinstance(cmd, list):
-        tokens = cmd
-    else:
-        tokens = cmd.split(' ')
-
-    spcmd = ['cmd', '/C'] + tokens
-    # Python 3.7 才能用這個寫法
-    # completed = subprocess.run(spcmd, capture_output=True)
-    completed = subprocess.run(spcmd, stdout=subprocess.PIPE)
-    if completed.returncode == 0:
-        # 因為被 cmd 包了一層, 不管怎樣都是 return 0
-        return completed.stdout.decode('cp950')
-
-    return None
+    return (completed.returncode, stdout_content)
 
 def verof_vcredist():
     """
@@ -119,15 +133,16 @@ def install_vcredist():
     # 下載與安裝
     url = 'https://download.microsoft.com/download/1/6/5/' + \
           '165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe'
-    vcdist = download_file(url, check_dir('~/.skcom'))
-    ps_exec(vcdist + r' setup /passive', admin=True)
+    vcexe = download_file(url, check_dir('~/.skcom'))
+    cmd = [vcexe, 'setup', '/passive']
+    ps_exec(cmd, admin_priv=True)
 
     # 等待安裝完成
-    args = ['tasklist', '/fi', 'imagename eq vcredist_x64.exe', '/fo', 'csv']
-    output = cmd_exec(args)
-    while output.count('\r\n') == 2:
+    cmd = ['tasklist', '/fi', 'imagename eq vcredist_x64.exe', '/fo', 'csv']
+    retcode, stdout = ps_exec(cmd)
+    while stdout.count('\r\n') == 2:
         time.sleep(0.5)
-        output = cmd_exec(args)
+        retcode, stdout = ps_exec(cmd)
 
     # 移除安裝包
     os.remove(vcdist)
@@ -142,15 +157,16 @@ def verof_skcom():
     """
     檢查群益 API 元件是否已註冊
     """
-    cmd = r'reg query HKLM\SOFTWARE\Classes\TypeLib /s /f SKCOM.dll'
-    result = ps_exec(cmd)
+    cmd = ['reg', 'query', r'HKLM\SOFTWARE\Classes\TypeLib', '/s', '/f', 'SKCOM.dll']
+    retcode, stdout = ps_exec(cmd)
 
     skcom_ver = '0.0.0.0'
-    if result is not None:
-        lines = result.split('\r\n')
+    if retcode == 0:
+        lines = stdout.split('\n')
         for line in lines:
             # 找 DLL 檔案路徑
             match = re.match(r'.+REG_SZ\s+(.+SKCOM.dll)', line)
+            # print(match)
             if match is not None:
                 # 取檔案摘要內容裡版本號碼
                 dll_path = match.group(1)
@@ -188,8 +204,8 @@ def install_skcom(install_ver):
                     extf.write(cmpf.read())
 
     # 註冊元件
-    cmd = r'regsvr32 %s\SKCOM.dll' % com_path
-    ps_exec(cmd, admin=True)
+    cmd = ['regsvr32', r'%s\SKCOM.dll' % com_path]
+    ps_exec(cmd, admin_priv=True)
 
     return True
 
@@ -205,8 +221,8 @@ def remove_skcom():
     console_print('移除群益 API 元件')
     console_print('  路徑: ' + com_path)
     console_print('  解除註冊: ' + com_file)
-    cmd = 'regsvr32 /u ' + com_file
-    ps_exec(cmd, admin=True)
+    cmd = ['regsvr32', '/u', com_file]
+    ps_exec(cmd, admin_priv=True)
 
     console_print('  移除元件目錄')
     shutil.rmtree(com_path)
