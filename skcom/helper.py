@@ -2,6 +2,7 @@
 quicksk.helper
 """
 
+import logging
 import os.path
 import random
 import re
@@ -16,26 +17,6 @@ import comtypes.client
 from comtypes import COMError
 import requests
 from packaging import version
-
-
-_SLIENT_MODE = False
-
-def set_silent(mode):
-    """
-    控制 console_print 是否輸出
-    """
-    # pylint: disable=superfluous-parens, unidiomatic-typecheck,global-statement
-    assert(type(mode) != 'bool')
-
-    global _SLIENT_MODE
-    _SLIENT_MODE = mode
-
-def console_print(msg):
-    """
-    可以控制開關的 console 輸出
-    """
-    if not _SLIENT_MODE:
-        print(msg)
 
 def ps_exec(cmd, admin_priv=False):
     """
@@ -94,8 +75,6 @@ def ps_exec(cmd, admin_priv=False):
             '-NoNewWindow',
             '-Wait'
         ]
-        print(cmd)
-        exit(1)
 
     # 取 stdout, stderr
     stdout_content = ''
@@ -174,7 +153,7 @@ def verof_skcom():
                 try:
                     skcom_ver = fso.GetFileVersion(dll_path)
                     # skcom_ver = fso.GetFileVersion(r'C:\makeexception.txt')
-                except COMError:
+                except COMError as err:
                     pass
 
     return version.parse(skcom_ver)
@@ -218,13 +197,14 @@ def remove_skcom():
     if not os.path.isfile(com_file):
         return
 
-    console_print('移除群益 API 元件')
-    console_print('  路徑: ' + com_path)
-    console_print('  解除註冊: ' + com_file)
+    logger = logging.getLogger('helper')
+    logger.info('移除群益 API 元件')
+    logger.info('  路徑: ' + com_path)
+    logger.info('  解除註冊: ' + com_file)
     cmd = ['regsvr32', '/u', com_file]
     ps_exec(cmd, admin_priv=True)
 
-    console_print('  移除元件目錄')
+    logger.info('  移除元件目錄')
     shutil.rmtree(com_path)
 
 def has_valid_mod():
@@ -259,7 +239,7 @@ def has_valid_mod():
         if sk.typelib_path == dll_path:
             result = True
         else:
-            console_print('移除 site-packages\\comtypes\\gen\\SKCOMLib.py, 因為連結的 DLL 不正確')
+            logger.info('移除 site-packages\\comtypes\\gen\\SKCOMLib.py, 因為連結的 DLL 不正確')
             del comtypes.gen.SKCOMLib
             del comtypes.gen._75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0
             os.remove(name_mod)
@@ -275,7 +255,8 @@ def generate_mod():
     r"""
     產生 COM 元件的 comtypes.gen 對應模組
     """
-    console_print(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
+    logger = logging.getLogger('helper')
+    logger.info(r'生成 site-packages\comtypes\gen\SKCOMLib.py')
     dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
     comtypes.client.GetModule(dll_path)
 
@@ -292,17 +273,18 @@ def clean_mod():
         if not os.path.isdir(gendir):
             continue
 
-        console_print('移除 comtypes 套件自動生成檔案')
-        console_print('  路徑 ' + gendir)
+        logger = logging.getLogger('helper')
+        logger.info('移除 comtypes 套件自動生成檔案')
+        logger.info('  路徑 ' + gendir)
 
         for item in os.listdir(gendir):
             if item.endswith('.py'):
-                console_print('  移除 %s' % item)
+                logger.info('  移除 %s' % item)
                 os.remove(gendir + '\\' + item)
 
         cache_dir = gendir + '\\' + '__pycache__'
         if os.path.isdir(cache_dir):
-            console_print('  移除 __pycache__')
+            logger.info('  移除 __pycache__')
             shutil.rmtree(cache_dir)
 
 def download_file(url, save_path):
