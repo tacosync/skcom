@@ -1,9 +1,7 @@
 from setuptools import setup, find_packages
 
-# Load reStructedText description.
-# Online Editor   - http://rst.ninjs.org/
-# Quick Reference - http://docutils.sourceforge.net/docs/user/rst/quickref.html
-readme = open('README.rst', 'r', encoding='utf-8')
+# Load Markdown description.
+readme = open('README.md', 'r', encoding='utf-8')
 longdesc = readme.read()
 readme.close()
 
@@ -12,9 +10,10 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.9.3',
+    version='0.9.4',
     description='Get stock informations by Capital API.',
     long_description=longdesc,
+    long_description_content_type='text/markdown',
     packages=find_packages(),
     url='https://github.com/virus-warnning/skcom',
     license='MIT',
