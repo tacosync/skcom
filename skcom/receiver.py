@@ -305,11 +305,17 @@ class QuoteReceiver():
         處理登入時的公告訊息
         """
         # pylint: disable=invalid-name, unused-argument, no-self-use
-        # TODO: 用參數控制人工回答或自動回答
-        print('收到系統公告:')
-        print('  %s' % bstrMessage)
-        print('回答已讀嗎? [y/n]: ', end='')
-        answer = input()
+        # 檢查是否有設定自動回應已讀公告
+        reply_read = False
+        if 'reply_read' in self.config:
+            reply_read = self.config['reply_read']
+
+        self.logger.info('系統公告: %s', bstrMessage)
+        if not reply_read:
+            answer = input('回答已讀嗎? [y/n]: ')
+        else:
+            answer = 'y'
+
         if answer == 'y':
             return 0xffff
         return 0
