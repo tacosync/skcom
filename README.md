@@ -38,7 +38,7 @@
 
 ```powershell
 (base) PS>pip install skcom
-(base) PS>python -m skcom.samples.setup
+(base) PS>python -m skcom.tools.setup
 安裝 Visual C++ 2010 可轉發套件
 Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
 安裝與註冊群益 API 元件
@@ -50,7 +50,7 @@ Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
 如果要升級群益 API 元件，建議先使用環境清除工具再重新安裝，避免 comtypes 自動生成碼與元件版本不相容
 
 ```powershell
-(base) PS>python -m skcom.samples.clean
+(base) PS>python -m skcom.tools.clean
 移除 comtypes 套件自動生成檔案
   路徑 C:\Users\Unknown\AppData\Local\Programs\Python\Python37\lib\site-packages\comtypes\gen
   移除 Scripting.py
@@ -65,7 +65,7 @@ Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
   解除註冊: C:\Users\Unknown\.skcom\lib\SKCOM.dll
   移除元件目錄
 
-(base) PS>python -m skcom.samples.setup
+(base) PS>python -m skcom.tools.setup
 ```
 
 
