@@ -10,12 +10,12 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.9.4',
+    version='0.9.3.2',
     description='Get stock informations by Capital API.',
     long_description=longdesc,
     long_description_content_type='text/markdown',
     packages=find_packages(),
-    url='https://github.com/virus-warnning/skcom',
+    url='https://github.com/tacosync/skcom',
     license='MIT',
     author='Raymond Wu',
     package_data={

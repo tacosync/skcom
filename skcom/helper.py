@@ -33,14 +33,13 @@ def ps_exec(cmd, admin_priv=False):
         existed = os.path.isfile(stdout_path)
     try:
         open(stdout_path, 'w').close()
-    except:
+    except IOError:
         return (-1, '')
 
     # 組織執行指令
     if admin_priv:
         # 產生底層參數
-        deep_args = list(map(lambda n: "'{}'".format(n), cmd[1:]))
-        deep_args = ','.join(deep_args)
+        deep_args = ','.join(cmd[1:])
 
         # 產生底層指令與表層參數
         surface_args = [
@@ -50,7 +49,6 @@ def ps_exec(cmd, admin_priv=False):
             '-RedirectStandardOutput', stdout_path,
             '-NoNewWindow'
         ]
-        surface_args = list(map(lambda n: '"{}"'.format(n), surface_args))
         surface_args = ','.join(surface_args)
 
         # 產生表層指令
@@ -63,8 +61,7 @@ def ps_exec(cmd, admin_priv=False):
         ]
     else:
         # 產生表層參數
-        surface_args = list(map(lambda n: '"{}"'.format(n), cmd[1:]))
-        surface_args = ','.join(surface_args)
+        surface_args = ','.join(cmd[1:])
 
         # 產生完整執行程式指令
         cmd = [
@@ -76,17 +73,17 @@ def ps_exec(cmd, admin_priv=False):
             '-Wait'
         ]
 
-    # 取 stdout, stderr
+    # 取 stdout
     stdout_content = ''
-    completed = subprocess.run(cmd)
-    if completed.returncode == 0:
-        with open(stdout_path, 'r') as stdout_file:
-            stdout_content = stdout_file.read()
+    subprocess.run(cmd, check=True)
+    with open(stdout_path, 'r') as stdout_file:
+        stdout_content = stdout_file.read()
 
     # 移除暫存檔
     os.remove(stdout_path)
 
-    return (completed.returncode, stdout_content)
+    # TODO: 錯誤改為使用例外處理, 需要改為只回傳一個參數
+    return (0, stdout_content)
 
 def verof_vcredist():
     """
@@ -118,13 +115,13 @@ def install_vcredist():
 
     # 等待安裝完成
     cmd = ['tasklist', '/fi', 'imagename eq vcredist_x64.exe', '/fo', 'csv']
-    retcode, stdout = ps_exec(cmd)
+    _, stdout = ps_exec(cmd)
     while stdout.count('\r\n') == 2:
         time.sleep(0.5)
-        retcode, stdout = ps_exec(cmd)
+        _, stdout = ps_exec(cmd)
 
     # 移除安裝包
-    os.remove(vcdist)
+    os.remove(vcexe)
 
 def remove_vcredist():
     """
@@ -153,7 +150,7 @@ def verof_skcom():
                 try:
                     skcom_ver = fso.GetFileVersion(dll_path)
                     # skcom_ver = fso.GetFileVersion(r'C:\makeexception.txt')
-                except COMError as err:
+                except COMError:
                     pass
 
     return version.parse(skcom_ver)
@@ -199,8 +196,8 @@ def remove_skcom():
 
     logger = logging.getLogger('helper')
     logger.info('移除群益 API 元件')
-    logger.info('  路徑: ' + com_path)
-    logger.info('  解除註冊: ' + com_file)
+    logger.info('  路徑: %s', com_path)
+    logger.info('  解除註冊: %s', com_file)
     cmd = ['regsvr32', '/u', com_file]
     ps_exec(cmd, admin_priv=True)
 
@@ -275,11 +272,11 @@ def clean_mod():
 
         logger = logging.getLogger('helper')
         logger.info('移除 comtypes 套件自動生成檔案')
-        logger.info('  路徑 ' + gendir)
+        logger.info('  路徑 %s', gendir)
 
         for item in os.listdir(gendir):
             if item.endswith('.py'):
-                logger.info('  移除 %s' % item)
+                logger.info('  移除 %s', item)
                 os.remove(gendir + '\\' + item)
 
         cache_dir = gendir + '\\' + '__pycache__'

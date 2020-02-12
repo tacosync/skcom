@@ -6,14 +6,9 @@ import sys
 # 檢查 Python 程式碼規範, 但容許 TODO 標記
 print('Lint *.py files.')
 cmd = 'pylint -f colorized -d fixme skcom'
-if os.system(cmd) != 0:
-    exit(1)
-
-# 檢查 reStructureText 語法, 避免上傳後被打槍
-print('Check README.rst.')
-cmd = 'rstcheck README.rst'
-complete = subprocess.run(cmd, stdout=subprocess.PIPE)
-if complete.returncode != 0:
+ret = os.system(cmd)
+if ret != 0:
+    print('Cannot pass syntax checking. (return code: {})'.format(ret))
     exit(1)
 
 # 打包

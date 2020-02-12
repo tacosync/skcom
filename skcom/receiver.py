@@ -10,6 +10,7 @@ import os
 import os.path
 import shutil
 import signal
+import sys
 import time
 
 import pythoncom
@@ -81,7 +82,7 @@ class QuoteReceiver():
         """
         self.logger.info('請開啟設定檔，將帳號密碼改為您的證券帳號')
         self.logger.info('設定檔路徑: %s', self.dst_conf)
-        exit(0)
+        sys.exit(0)
 
     def ctrl_c(self, sig, frm):
         """
