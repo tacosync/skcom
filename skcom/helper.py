@@ -71,7 +71,14 @@ def win_exec(cmd, admin_priv=False):
         # 移除暫存檔
         os.remove(stdout_path)
     else:
+        # 如果要使用 PowerShell, 含有空白字元的參數需要加上雙引號, 避免字串解析錯誤
+        if cmd[0] == 'powershell.exe':
+            for i in range(1, len(cmd)):
+                if cmd[i].find(' ') >= 0:
+                    cmd[i] = '"{}"'.format(cmd[i])
+
         # 執行指令
+        # 如果 shell=False, 安裝 vcredist 的時候會無法提升權限而失敗
         comp = subprocess.run(cmd, shell=True, capture_output=True)
         if comp.returncode != 0:
             try:
@@ -129,19 +136,31 @@ def install_vcredist():
     cmd = ['tasklist', '/fi', 'imagename eq vcredist_x64.exe', '/fo', 'csv']
     stdout = win_exec(cmd)
     while stdout.count('\r\n') == 2:
-        print(stdout)
         time.sleep(0.5)
         stdout = win_exec(cmd)
-    print(stdout)
 
     # 移除安裝包
     os.remove(vcexe)
 
 def remove_vcredist():
     """
-    TODO: 移除 Visual C++ 2010 x64 Redistributable 10.0.40219.325
-    這部分先確定是否會阻斷, 如果不利自動化就放棄實作
+    移除 Visual C++ 2010 x64 Redistributable  x64 - 10.0.40219.325
+
+    其他作法與不採用原因:
+      * 方法1: Get-CimInstance ... | Invoke-CimMethod ...
+        * 缺點: 無法自動切換系統管理員身分
+      * 方法2: Uninstall-Package ...
+        * 缺點: UAC 對話方塊不會聚焦
     """
+
+    logger = logging.getLogger('helper')
+    logger.info('移除 Visual C++ 2010 x64 Redistributable')
+    cmd = [
+        'msiexec.exe',
+        '/X{1D8E6291-B0D5-35EC-8441-6616F567A0F7}',
+        '/passive'
+    ]
+    win_exec(cmd)
 
 def verof_skcom():
     """

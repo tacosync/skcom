@@ -20,3 +20,5 @@ class TestHelper(unittest.TestCase):
         dll_path = os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
         cmd = ['regsvr32', '/u', dll_path]
         stdout = win_exec(cmd, admin_priv=True)
+
+        # TODO: 需要測試 powershell.exe 開頭, 後面參數有空格的狀況
