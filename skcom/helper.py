@@ -17,29 +17,28 @@ import comtypes.client
 from comtypes import COMError
 import requests
 from packaging import version
+from skcom.exception import ShellException
 
-def ps_exec(cmd, admin_priv=False):
-    """
-    使用 Windows PowerShell Start-Process 執行程式,
-    回傳 STDOUT, 並且支援以系統管理員身分執行,
-    注意 STDOUT 重導後, 換行字元會是 \n 而不是 \r\n
-    """
+def win_exec(cmd, admin_priv=False):
+    charset = 'cp950'
 
-    # 產生隨機檔名, 用來儲存 stdout
-    existed = True
-    while existed:
-        fsn = random.randint(0, 65535)
-        stdout_path = os.path.expanduser(r'~\stdout-%04x.txt' % fsn)
-        existed = os.path.isfile(stdout_path)
-    try:
-        open(stdout_path, 'w').close()
-    except IOError:
-        return (-1, '')
+    # ~ 自動轉換家目錄
+    path = os.path.expanduser(cmd[0])
+    cmd[0] = path
 
-    # 組織執行指令
     if admin_priv:
-        # 產生底層參數
-        deep_args = ','.join(cmd[1:])
+        # 產生隨機檔名, 用來儲存 stdout
+        existed = True
+        while existed:
+            fsn = random.randint(0, 65535)
+            stdout_path = os.path.expanduser(r'~\stdout-%04x.txt' % fsn)
+            existed = os.path.isfile(stdout_path)
+        try:
+            open(stdout_path, 'w').close()
+        except IOError:
+            return (-1, '')
+
+        deep_args = pack_arglist(cmd[1:])
 
         # 產生底層指令與表層參數
         surface_args = [
@@ -49,6 +48,9 @@ def ps_exec(cmd, admin_priv=False):
             '-RedirectStandardOutput', stdout_path,
             '-NoNewWindow'
         ]
+
+        # 表層參數加上雙引號套入 ArgumentList
+        # TODO: 底層參數的雙引號逸脫
         surface_args = ','.join(surface_args)
 
         # 產生表層指令
@@ -59,31 +61,41 @@ def ps_exec(cmd, admin_priv=False):
             '-Verb', 'RunAs',
             '-Wait'
         ]
+
+        # 取 stdout
+        stdout = ''
+        comp = subprocess.run(cmd, check=True)
+        with open(stdout_path, 'r') as stdout_file:
+            stdout = stdout_file.read()
+
+        # 移除暫存檔
+        os.remove(stdout_path)
     else:
-        # 產生表層參數
-        surface_args = ','.join(cmd[1:])
+        # 執行指令
+        comp = subprocess.run(cmd, shell=True, capture_output=True)
+        if comp.returncode != 0:
+            try:
+                stderr = comp.stderr.decode(charset)
+            except:
+                stderr = 'Cannot decode stderr.'
+            raise ShellException(comp.returncode, stderr)
 
-        # 產生完整執行程式指令
-        cmd = [
-            'powershell.exe', 'Start-Process',
-            '-FilePath', cmd[0],
-            '-ArgumentList', surface_args,
-            '-RedirectStandardOutput', stdout_path,
-            '-NoNewWindow',
-            '-Wait'
-        ]
+        # stdout 解碼
+        try:
+            stdout = comp.stdout.decode(charset)
+        except:
+            raise ShellException(-1, 'Cannot decode stdout')
 
-    # 取 stdout
-    stdout_content = ''
-    subprocess.run(cmd, check=True)
-    with open(stdout_path, 'r') as stdout_file:
-        stdout_content = stdout_file.read()
+    return stdout
 
-    # 移除暫存檔
-    os.remove(stdout_path)
-
-    # TODO: 錯誤改為使用例外處理, 需要改為只回傳一個參數
-    return (0, stdout_content)
+def pack_arglist(args):
+    """
+    處理 Start-Process -ArgumentList 的參數內容
+    """
+    packed = list(map(lambda arg: '"{}"'.format(arg), args))
+    packed = ' '.join(packed)
+    packed = "'{}'".format(packed)
+    return packed
 
 def verof_vcredist():
     """
@@ -106,19 +118,21 @@ def install_vcredist():
     安裝 Visual C++ 2010 x64 Redistributable 10.0.40219.325
     """
 
-    # 下載與安裝
+    # 下載與安裝 (安裝程式會自動切換系統管理員身分)
     url = 'https://download.microsoft.com/download/1/6/5/' + \
           '165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe'
     vcexe = download_file(url, check_dir('~/.skcom'))
     cmd = [vcexe, 'setup', '/passive']
-    ps_exec(cmd, admin_priv=True)
+    win_exec(cmd)
 
     # 等待安裝完成
     cmd = ['tasklist', '/fi', 'imagename eq vcredist_x64.exe', '/fo', 'csv']
-    _, stdout = ps_exec(cmd)
+    stdout = win_exec(cmd)
     while stdout.count('\r\n') == 2:
+        print(stdout)
         time.sleep(0.5)
-        _, stdout = ps_exec(cmd)
+        stdout = win_exec(cmd)
+    print(stdout)
 
     # 移除安裝包
     os.remove(vcexe)
@@ -133,11 +147,13 @@ def verof_skcom():
     """
     檢查群益 API 元件是否已註冊
     """
-    cmd = ['reg', 'query', r'HKLM\SOFTWARE\Classes\TypeLib', '/s', '/f', 'SKCOM.dll']
-    retcode, stdout = ps_exec(cmd)
-
     skcom_ver = '0.0.0.0'
-    if retcode == 0:
+
+    # TODO: 比照 install_vcredist 用 winreg 處理
+    cmd = ['reg', 'query', r'HKLM\SOFTWARE\Classes\TypeLib', '/s', '/f', 'SKCOM.dll']
+
+    try:
+        stdout = win_exec(cmd)
         lines = stdout.split('\n')
         for line in lines:
             # 找 DLL 檔案路徑
@@ -147,11 +163,12 @@ def verof_skcom():
                 # 取檔案摘要內容裡版本號碼
                 dll_path = match.group(1)
                 fso = comtypes.client.CreateObject('Scripting.FileSystemObject')
-                try:
-                    skcom_ver = fso.GetFileVersion(dll_path)
-                    # skcom_ver = fso.GetFileVersion(r'C:\makeexception.txt')
-                except COMError:
-                    pass
+                skcom_ver = fso.GetFileVersion(dll_path)
+                # skcom_ver = fso.GetFileVersion(r'C:\makeexception.txt')
+    except subprocess.CalledProcessError:
+        pass
+    except COMError:
+        pass
 
     return version.parse(skcom_ver)
 
@@ -181,7 +198,7 @@ def install_skcom(install_ver):
 
     # 註冊元件
     cmd = ['regsvr32', r'%s\SKCOM.dll' % com_path]
-    ps_exec(cmd, admin_priv=True)
+    win_exec(cmd, admin_priv=True)
 
     return True
 
@@ -199,10 +216,11 @@ def remove_skcom():
     logger.info('  路徑: %s', com_path)
     logger.info('  解除註冊: %s', com_file)
     cmd = ['regsvr32', '/u', com_file]
-    ps_exec(cmd, admin_priv=True)
+    win_exec(cmd, admin_priv=True)
 
     logger.info('  移除元件目錄')
     shutil.rmtree(com_path)
+
 
 def has_valid_mod():
     r"""
@@ -310,9 +328,3 @@ def check_dir(usr_path):
         os.makedirs(rel_path)
     abs_path = os.path.realpath(rel_path)
     return abs_path
-
-def get_dll_abs_path():
-    """
-    取得 SKCOM.dll 絕對路徑
-    """
-    return os.path.expanduser(r'~\.skcom\lib\SKCOM.dll')
