@@ -36,6 +36,7 @@ class QuoteReceiver():
 
         # 接收器設定屬性
         self.gui_mode = gui_mode
+        self.cache_path = os.path.expanduser(r'~\.skcom\cache')
         self.log_path = os.path.expanduser(r'~\.skcom\logs\capital')
         self.dst_conf = os.path.expanduser(r'~\.skcom\skcom.json')
 
@@ -60,6 +61,10 @@ class QuoteReceiver():
         # 產生 log 目錄
         if not os.path.isdir(self.log_path):
             os.makedirs(self.log_path)
+
+        # 產生 cache 目錄
+        if not os.path.isdir(self.cache_path):
+            os.makedirs(self.cache_path)
 
         valid_config = False
         if not os.path.isfile(self.dst_conf):
@@ -184,6 +189,7 @@ class QuoteReceiver():
                 # 15:00 以前取樣到昨日
                 # 15:00 以後取樣到當日
                 now = datetime.today()
+                iso_today = now.strftime('%Y-%m-%d')
                 human_min = now.hour * 100 + now.minute
                 day_offset = 0
                 if human_min < 1500:
@@ -198,6 +204,12 @@ class QuoteReceiver():
                     # 參考文件: 4-4-5 (p.97)
                     # 1. 參數 pSKStock 可以省略
                     # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
+                    cache_filename = r'{}\{}\kline\{}.json'.format(self.cache_path, iso_today, stock_no)
+                    if os.path.isfile(cache_filename):
+                        with open(cache_filename, 'r') as cache_file:
+                            self.daily_kline[stock_no] = json.load(cache_file)
+                            self.logger.info('載入 %s 的日 K 快取', stock_no)
+                        continue
                     (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByNo(stock_no)
                     if n_code != 0:
                         self.handle_sk_error('GetStockByNo()', n_code)
@@ -214,6 +226,10 @@ class QuoteReceiver():
                     # 參考文件: 4-4-9 (p.99), 4-4-21 (p.105)
                     # 1. 使用方式與文件相符
                     # 2. 台股日 K 使用全盤與 AM 盤效果相同
+                    cache_filename = r'{}\{}\kline\{}.json'.format(self.cache_path, iso_today, stock_no)
+                    if os.path.isfile(cache_filename):
+                        continue
+                    self.logger.info('請求 %s 的日 K 資料', stock_no)
                     n_code = self.skq.SKQuoteLib_RequestKLine(stock_no, 4, 1)
                     # n_code = self.skq.SKQuoteLib_RequestKLineAM(stock_no, 4, 1, 1)
                     if n_code != 0:
@@ -226,8 +242,26 @@ class QuoteReceiver():
                     if self.daily_kline is not None:
                         passed = time.time() - self.kline_last_mtime
                         if passed > 0.15:
+                            # 生成快取目錄
+                            iso_today = datetime.now().strftime('%Y-%m-%d')
+                            cache_base = r'{}\{}\kline'.format(self.cache_path, iso_today)
+                            if not os.path.isdir(cache_base):
+                                os.makedirs(cache_base)
+
                             for stock_id in self.daily_kline:
+                                cache_filename = r'{}\{}.json'.format(cache_base, stock_id)
+
+                                # 寫入快取檔
+                                if not os.path.isfile(cache_filename):
+                                    self.daily_kline[stock_id]['quotes'].reverse()
+                                    with open(cache_filename, 'w') as cache_file:
+                                        # TODO: 實際存檔時發現是 BIG5 編碼, 需要看有沒有辦法改 utf-8
+                                        json.dump(self.daily_kline[stock_id], cache_file, indent=2, ensure_ascii=False)
+
+                                # 觸發事件
+                                self.daily_kline[stock_id]['quotes'] = self.daily_kline[stock_id]['quotes'][0:self.kline_days_limit]
                                 self.kline_hook(self.daily_kline[stock_id])
+
                             self.daily_kline = None
                     pythoncom.PumpWaitingMessages() # pylint: disable=no-member
                     time.sleep(0.5)
@@ -455,8 +489,10 @@ class QuoteReceiver():
             }
             buffer = self.daily_kline[bstrStockNo]['quotes']
             buffer.append(quote)
-            if self.kline_days_limit > 0 and len(buffer) > self.kline_days_limit:
-                buffer.pop(0)
+
+            # 這部分改由事件觸發前處理
+            #if self.kline_days_limit > 0 and len(buffer) > self.kline_days_limit:
+            #    buffer.pop(0)
 
             # 取得最後一筆後觸發 hook, 並且清除緩衝區
             #if this_date == self.end_date:
