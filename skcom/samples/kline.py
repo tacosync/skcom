@@ -13,6 +13,7 @@ def on_receive_kline(kline):
     """
     處理日 K 資料
     """
+    # TODO: 在 Git-Bash 按下 Ctrl+C 之後才會觸發
     print('[%s %s] 的日K資料' % (kline['id'], kline['name']))
     for quote in kline['quotes']:
         print(
