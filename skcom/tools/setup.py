@@ -24,8 +24,8 @@ def main():
         return
     logger.info('Visual C++ 2010 可轉發套件已安裝, 版本: %s', current_ver)
 
-    # 檢查與更新 API 元件 (>= 2.13.18)
-    skcom_verstr = '2.13.18'
+    # 檢查與更新 API 元件 (>= 2.13.21)
+    skcom_verstr = '2.13.21'
     required_ver = version.parse(skcom_verstr)
     current_ver = skcom.helper.verof_skcom()
     if current_ver < required_ver:
