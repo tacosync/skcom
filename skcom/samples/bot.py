@@ -17,6 +17,8 @@ class StockBot(QuoteReceiver):
         super().__init__()
         self.steps = {}
         self.level = {}
+        self.vsteps = {}
+        self.vlevel = {}
         self.set_kline_hook(self.on_receive_kline, 240)
         self.set_ticks_hook(self.on_receive_ticks, True)
 
@@ -33,22 +35,35 @@ class StockBot(QuoteReceiver):
             level += 1
         return level
 
+    def get_vlevel(self, security_id, volume):
+        vlevel = -1
+        for (tvol, name) in self.vsteps[security_id]:
+            if volume < tvol:
+                break
+            vlevel += 1
+        return vlevel
+
     def on_receive_ticks(self, tick):
         if self.steps:
             level = self.get_level(tick['id'], tick['close'])
-            if level == self.level[tick['id']]:
-                return
+            if level != self.level[tick['id']]:
+                # 位階發生變化, 進行通知
+                if level > self.level[tick['id']]:
+                    lname = '%d日線' % self.steps[tick['id']][level][1]
+                    print('[%s] %s 現價 %.2f - 站上%s' % (tick['time'], tick['id'], tick['close'], lname))
+                else:
+                    lname = '%d日線' % self.steps[tick['id']][level + 1][1]
+                    print('[%s] %s 現價 %.2f - 跌破%s' % (tick['time'], tick['id'], tick['close'], lname))
 
-            # 位階發生變化, 進行通知
-            if level > self.level[tick['id']]:
-                lname = '%d日線' % self.steps[tick['id']][level][1]
-                print('[%s] %s 現價 %.2f - 站上%s' % (tick['time'], tick['id'], tick['close'], lname))
-            else:
-                lname = '%d日線' % self.steps[tick['id']][level + 1][1]
-                print('[%s] %s 現價 %.2f - 跌破%s' % (tick['time'], tick['id'], tick['close'], lname))
+                # 記住目前位階
+                self.level[tick['id']] = level
 
-            # 記住目前位階
-            self.level[tick['id']] = level
+            vlevel = self.get_vlevel(tick['id'], tick['vol'])
+            if vlevel != self.vlevel[tick['id']]:
+                self.vlevel[tick['id']] = vlevel
+                vname  = self.vsteps[tick['id']][vlevel][1]
+                print('[%s] %s 成交量 %d - 突破%s' % (tick['time'], tick['id'], tick['vol'], vname))
+
             # self.stop()
 
     def on_receive_kline(self, kline):
@@ -63,12 +78,13 @@ class StockBot(QuoteReceiver):
         favg   = lambda quotes, n: reduce(fsum, map(fclose, quotes[0:n])) / n
 
         # 計算各條均線當日位置
-        avg5   = favg(kline['quotes'], 5)
-        avg10  = favg(kline['quotes'], 10)
-        avg20  = favg(kline['quotes'], 20)
-        avg60  = favg(kline['quotes'], 60)
-        avg120 = favg(kline['quotes'], 120)
-        avg240 = favg(kline['quotes'], 240)
+        quotes = kline['quotes']
+        avg5   = favg(quotes, 5)
+        avg10  = favg(quotes, 10)
+        avg20  = favg(quotes, 20)
+        avg60  = favg(quotes, 60)
+        avg120 = favg(quotes, 120)
+        avg240 = favg(quotes, 240)
 
         # 紀錄均線值, 依價位排序
         self.steps[security_id] = [
@@ -81,18 +97,47 @@ class StockBot(QuoteReceiver):
         ]
         self.steps[security_id].sort(key=itemgetter(0))
 
-        print('均線位置:')
-        for (close, days) in self.steps[security_id]:
-            print('  %3d日線: %.2f' % (days, close))
+        # 取月均量與最大量, 作為出量參考值
+        # TODO: 取 60, 20 均量 & 20 最大量, 做成量能階梯
+        fvol  = lambda q: q['volume']
+        fvavg = lambda quotes, n: reduce(fsum, map(fvol, quotes[0:n])) / n
+        fvmax = lambda quotes, n: max(map(fvol, quotes[0:n]))
+        avg60 = fvavg(quotes, 60)
+        avg20 = fvavg(quotes, 20)
+        avgmax = fvmax(quotes, 20)
+        self.vsteps[security_id] = [
+            (avg60, '季均量'),
+            (avg20, '月均量'),
+            (avgmax, '月最大量')
+        ]
+        self.vsteps[security_id].sort(key=itemgetter(0))
+        self.vlevel[security_id] = -1
 
-        close = kline['quotes'][0]['close']
+        close = quotes[0]['close']
         level = self.get_level(security_id, close)
         self.level[security_id] = level
         if level == -1:
             lname = '所有均線之下'
         else:
             lname = '%d日線' % self.steps[security_id][level][1]
-        print('昨收: %.2f, 位階: %s' % (close, lname))
+
+        print('[%s] %s' % (kline['id'], kline['name']))
+        print('* 昨收: %.2f, 位階: %s' % (close, lname))
+        print('* 量能排列:', end='')
+        prefix = ' '
+        for (vol, name) in self.vsteps[security_id]:
+            print('%s%s %d' % (prefix, name, vol), end='')
+            if prefix == ' ':
+                prefix = ' > '
+        print()
+
+        print('* 均線排列:', end='')
+        prefix = ' '
+        for (close, days) in self.steps[security_id]:
+            print('%s%dD %.2f' % (prefix, days, close), end='')
+            if prefix == ' ':
+                prefix = ' > '
+        print()
 
 def main():
     """
