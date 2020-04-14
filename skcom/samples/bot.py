@@ -3,6 +3,7 @@
 """
 from functools import reduce
 from operator import itemgetter
+import logging
 
 try:
     from skcom.receiver import QuoteReceiver
@@ -45,15 +46,18 @@ class StockBot(QuoteReceiver):
 
     def on_receive_ticks(self, tick):
         if self.steps:
+            logger = logging.getLogger('busm')
             level = self.get_level(tick['id'], tick['close'])
             if level != self.level[tick['id']]:
                 # 位階發生變化, 進行通知
                 if level > self.level[tick['id']]:
                     lname = '%d日線' % self.steps[tick['id']][level][1]
-                    print('[%s] %s 現價 %.2f - 站上%s' % (tick['time'], tick['id'], tick['close'], lname))
+                    #print('[%s] %s 現價 %.2f - 站上%s' % (tick['time'], tick['id'], tick['close'], lname))
+                    logger.info('[%s] %s 現價 %.2f - 站上%s', tick['time'], tick['id'], tick['close'], lname)
                 else:
                     lname = '%d日線' % self.steps[tick['id']][level + 1][1]
-                    print('[%s] %s 現價 %.2f - 跌破%s' % (tick['time'], tick['id'], tick['close'], lname))
+                    #print('[%s] %s 現價 %.2f - 跌破%s' % (tick['time'], tick['id'], tick['close'], lname))
+                    logger.info('[%s] %s 現價 %.2f - 跌破%s', tick['time'], tick['id'], tick['close'], lname)
 
                 # 記住目前位階
                 self.level[tick['id']] = level
@@ -62,7 +66,8 @@ class StockBot(QuoteReceiver):
             if vlevel != self.vlevel[tick['id']]:
                 self.vlevel[tick['id']] = vlevel
                 vname  = self.vsteps[tick['id']][vlevel][1]
-                print('[%s] %s 成交量 %d - 突破%s' % (tick['time'], tick['id'], tick['vol'], vname))
+                #print('[%s] %s 成交量 %d - 突破%s' % (tick['time'], tick['id'], tick['vol'], vname))
+                logger.info('[%s] %s 成交量 %d - 突破%s', tick['time'], tick['id'], tick['vol'], vname)
 
             # self.stop()
 
@@ -121,23 +126,24 @@ class StockBot(QuoteReceiver):
         else:
             lname = '%d日線' % self.steps[security_id][level][1]
 
-        print('[%s] %s' % (kline['id'], kline['name']))
-        print('* 昨收: %.2f, 位階: %s' % (close, lname))
-        print('* 量能排列:', end='')
+        logger = logging.getLogger('busm')
+        logger.info('[%s] %s', kline['id'], kline['name'])
+        logger.info('* 昨收: %.2f, 位階: %s', close, lname)
+        msg = '* 量能排列:'
         prefix = ' '
         for (vol, name) in self.vsteps[security_id]:
-            print('%s%s %d' % (prefix, name, vol), end='')
+            msg += '%s%s %d' % (prefix, name, vol)
             if prefix == ' ':
                 prefix = ' > '
-        print()
+        logger.info(msg)
 
-        print('* 均線排列:', end='')
+        msg = '* 均線排列:'
         prefix = ' '
         for (close, days) in self.steps[security_id]:
-            print('%s%dD %.2f' % (prefix, days, close), end='')
+            msg += '%s%dD %.2f' % (prefix, days, close)
             if prefix == ' ':
                 prefix = ' > '
-        print()
+        logger.info(msg)
 
 def main():
     """

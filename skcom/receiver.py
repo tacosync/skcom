@@ -13,6 +13,7 @@ import signal
 import sys
 import time
 
+import yaml
 import pythoncom
 from comtypes import COMError
 import comtypes.client
@@ -38,7 +39,7 @@ class QuoteReceiver():
         self.gui_mode = gui_mode
         self.cache_path = os.path.expanduser(r'~\.skcom\cache')
         self.log_path = os.path.expanduser(r'~\.skcom\logs\capital')
-        self.dst_conf = os.path.expanduser(r'~\.skcom\skcom.json')
+        self.dst_conf = os.path.expanduser(r'~\.skcom\skcom.yaml')
 
         # Ticks 處理用屬性
         self.ticks_hook = None
@@ -69,12 +70,13 @@ class QuoteReceiver():
         valid_config = False
         if not os.path.isfile(self.dst_conf):
             # 複製設定檔範本
-            tpl_conf = os.path.dirname(os.path.realpath(__file__)) + r'\conf\skcom.json'
+            tpl_conf = os.path.dirname(os.path.realpath(__file__)) + r'\conf\skcom.yaml'
             shutil.copy(tpl_conf, self.dst_conf)
         else:
             # 載入設定檔
-            with open(self.dst_conf, 'r') as cfgfile:
-                self.config = json.load(cfgfile)
+            with open(self.dst_conf, 'r', encoding='utf-8') as cfgfile:
+                self.config = yaml.load(cfgfile, Loader=yaml.SafeLoader)
+                # self.config = json.load(cfgfile)
                 if self.config['account'] != 'A123456789':
                     valid_config = True
 
