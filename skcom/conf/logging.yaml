@@ -2,13 +2,15 @@ version: 1
 disable_existing_loggers: true
 formatters:
   standard:
-    datefmt: '%Y-%m-%d %H:%M:%S'
-    format: '[%(asctime)s] %(levelname)-7s | %(message)s'
+    datefmt: "%Y-%m-%d %H:%M:%S"
+    format: "[%(asctime)s] %(levelname)-7s | %(message)s"
   simple:
-    datefmt: '%H:%M:%S'
+    datefmt: "%H:%M:%S"
     format: "[%(asctime)s] %(levelname)-7s | %(message)s"
   minimal:
     format: "%(levelname)-7s | %(message)s"
+  message:
+    format: "%(message)s"
 handlers:
   logfile:
     level: WARNING
@@ -25,6 +27,12 @@ handlers:
     formatter: minimal
     class: logging.StreamHandler
     stream: ext://sys.stdout
+  telegram:
+    level: DEBUG
+    formatter: message
+    class: busm.BusmHandler
+    subject: ""
+    config: ~\.skcom\skcom.yaml
 loggers:
   skcom:
     level: DEBUG
@@ -36,4 +44,10 @@ loggers:
     level: INFO
     handlers:
       - console_mini
+    propagate: yes
+  bot:
+    level: DEBUG
+    handlers:
+      - telegram
+      - console
     propagate: yes
