@@ -27,7 +27,7 @@ setup(
         'packaging',
         'requests',
         'PyYAML >= 5.1',
-        'busm >= 0.9.2'
+        'busm >= 0.9.4'
     ],
     platforms=[
         'win_amd64'

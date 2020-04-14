@@ -187,15 +187,28 @@ class StockBot(QuoteReceiver):
         logger = logging.getLogger('bot')
         logger.info('[%s] %s', kline['id'], kline['name'])
         logger.info('昨收: %.2f, 位階: %s', close, lname)
+
         logger.info('量能排列:')
+        message = '  '
         for (vol, name) in self.volume_steps[security_id]:
-            if len(name) == 3:
-                name = '  ' + name
-            logger.info('- %s  %d', name, vol)
+            if message != '  ':
+                message += '  >  '
+            message += '%s %d' % (name, vol)
+        logger.info(message)
 
         logger.info('均線排列:')
+        idx = 0
+        message = ''
         for (close, days) in self.avgline_steps[security_id]:
-            logger.info('- %3d日  %.2f', days, close)
+            if idx % 3 == 0:
+                prefix = '  '
+            else:
+                prefix = '  >  '
+            message += '%s%3d日 %.2f' % (prefix, days, close)
+            idx += 1
+            if idx % 3 == 0:
+                logger.info(message)
+                message = ''
         logger.info('$')
 
 def main():
