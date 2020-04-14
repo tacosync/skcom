@@ -1,5 +1,5 @@
 """
-日 K 範例程式
+Telegram 機器人自動通知範例程式
 """
 from functools import reduce
 from operator import itemgetter
@@ -16,58 +16,114 @@ class StockBot(QuoteReceiver):
 
     def __init__(self):
         super().__init__()
-        self.steps = {}
-        self.level = {}
-        self.vsteps = {}
-        self.vlevel = {}
+
+        # 狀態值初始化
+        self.avgline_steps = {}   # 均線關卡
+        self.avgline_curr = {}    # 均線目前位階
+        self.volume_steps = {}    # 量能關卡
+        self.volume_curr = {}     # 量能目前位階
+        self.shaking_log = {}     # 均線震盪紀錄
+        self.freq_threshold = {}  # 均線震盪通知頻率的時間管制值
+
+        # 設定事件接收
         self.set_kline_hook(self.on_receive_kline, 240)
         self.set_ticks_hook(self.on_receive_ticks, True)
 
-    def get_level(self, security_id, close):
+    def sub_minutes(self, t1, t2):
         """
-        檢查價位關卡
+        hh:mm:ss 時間值相減取分鐘數, 控制震盪通知頻率用
+        """
+        (hh1, mm1, ss1) = t1.split(':')
+        (hh2, mm2, ss2) = t2.split(':')
+        m1 = int(hh1) * 60 + int(mm1) + float(ss1) / 60
+        m2 = int(hh2) * 60 + int(mm2) + float(ss2) / 60
+        return m2 - m1
+
+    def get_avgline_step(self, security_id, close):
+        """
+        取均線關卡
         * == -1 低於所有均線
         * >=  0 站上第 n 條均線
         """
-        level = -1
-        for (avg, days) in self.steps[security_id]:
+        step = -1
+        for (avg, days) in self.avgline_steps[security_id]:
             if close < avg:
                 break
-            level += 1
-        return level
+            step += 1
+        return step
 
-    def get_vlevel(self, security_id, volume):
-        vlevel = -1
-        for (tvol, name) in self.vsteps[security_id]:
+    def get_volume_step(self, security_id, volume):
+        """
+        取量能關卡
+        * == -1 低於所有關卡
+        * >=  0 站上第 n 個量能關卡
+        """
+        step = -1
+        for (tvol, name) in self.volume_steps[security_id]:
             if volume < tvol:
                 break
-            vlevel += 1
-        return vlevel
+            step += 1
+        return step
 
     def on_receive_ticks(self, tick):
-        if self.steps:
-            logger = logging.getLogger('busm')
-            level = self.get_level(tick['id'], tick['close'])
-            if level != self.level[tick['id']]:
-                # 位階發生變化, 進行通知
-                if level > self.level[tick['id']]:
-                    lname = '%d日線' % self.steps[tick['id']][level][1]
-                    #print('[%s] %s 現價 %.2f - 站上%s' % (tick['time'], tick['id'], tick['close'], lname))
-                    logger.info('[%s] %s 現價 %.2f - 站上%s', tick['time'], tick['id'], tick['close'], lname)
+        if self.avgline_steps:
+            logger = logging.getLogger('bot')
+
+            security_id   = tick['id']
+            security_name = tick['name']
+            evt_time      = tick['time'][0:8]
+            close         = tick['close']
+            volume        = tick['vol']
+
+            astep = self.get_avgline_step(security_id, close)
+            if astep != self.avgline_curr[security_id]:
+                # 檢查是否正在挑戰均線中
+                shaking = False
+                astep_vector = astep - self.avgline_curr[security_id]
+                if astep_vector in [1, -1]:
+                    shaking = True
+                    if self.shaking_log[security_id] and self.shaking_log[security_id][-1][1] + astep_vector != 0:
+                        shaking = False
+
+                if shaking:
+                    footprint = (evt_time, astep_vector)
+                    self.shaking_log[security_id].append(footprint)
                 else:
-                    lname = '%d日線' % self.steps[tick['id']][level + 1][1]
-                    #print('[%s] %s 現價 %.2f - 跌破%s' % (tick['time'], tick['id'], tick['close'], lname))
-                    logger.info('[%s] %s 現價 %.2f - 跌破%s', tick['time'], tick['id'], tick['close'], lname)
+                    self.shaking_log[security_id].clear()
+                    self.freq_threshold[security_id] = 10
+
+                # 位階發生變化, 進行通知
+                if len(self.shaking_log[security_id]) < 3:
+                    # 非震盪狀況, 立即通知
+                    if astep > self.avgline_curr[security_id]:
+                        action = '站上'
+                        days = self.avgline_steps[security_id][astep][1]
+                    else:
+                        action = '跌破'
+                        days = self.avgline_steps[security_id][astep + 1][1]
+                    logger.info('[%s] %s %s, %s %s 日線 - 現價 %.2f', evt_time, security_id, security_name, action, days, close)
+                else:
+                    # 震盪狀況, 達到時間門檻才通知
+                    min_passed = self.sub_minutes(self.shaking_log[security_id][0][0], self.shaking_log[security_id][-1][0])
+                    if min_passed >= self.freq_threshold[security_id]:
+                        if self.freq_threshold[security_id] == 10:
+                            self.freq_threshold[security_id] = 30
+                        else:
+                            self.freq_threshold[security_id] += 30
+                        if astep > self.avgline_curr[security_id]:
+                            days = self.avgline_steps[security_id][astep][1]
+                        else:
+                            days = self.avgline_steps[security_id][astep + 1][1]
+                        logger.info('[%s] %s %s, 在 %d 線震盪 %d 分鐘', evt_time, security_id, security_name, days, min_passed)
 
                 # 記住目前位階
-                self.level[tick['id']] = level
+                self.avgline_curr[security_id] = astep
 
-            vlevel = self.get_vlevel(tick['id'], tick['vol'])
-            if vlevel != self.vlevel[tick['id']]:
-                self.vlevel[tick['id']] = vlevel
-                vname  = self.vsteps[tick['id']][vlevel][1]
-                #print('[%s] %s 成交量 %d - 突破%s' % (tick['time'], tick['id'], tick['vol'], vname))
-                logger.info('[%s] %s 成交量 %d - 突破%s', tick['time'], tick['id'], tick['vol'], vname)
+            vstep = self.get_volume_step(security_id, volume)
+            if vstep != self.volume_curr[security_id]:
+                self.volume_curr[security_id] = vstep
+                vname  = self.volume_steps[security_id][vstep][1]
+                logger.info('[%s] %s %s, 突破%s - 成交量 %d', evt_time, security_id, security_name, vname, volume)
 
             # self.stop()
 
@@ -92,7 +148,7 @@ class StockBot(QuoteReceiver):
         avg240 = favg(quotes, 240)
 
         # 紀錄均線值, 依價位排序
-        self.steps[security_id] = [
+        self.avgline_steps[security_id] = [
             (avg5, 5),
             (avg10, 10),
             (avg20, 20),
@@ -100,7 +156,7 @@ class StockBot(QuoteReceiver):
             (avg120, 120),
             (avg240, 240)
         ]
-        self.steps[security_id].sort(key=itemgetter(0))
+        self.avgline_steps[security_id].sort(key=itemgetter(0))
 
         # 取月均量與最大量, 作為出量參考值
         # TODO: 取 60, 20 均量 & 20 最大量, 做成量能階梯
@@ -110,40 +166,37 @@ class StockBot(QuoteReceiver):
         avg60 = fvavg(quotes, 60)
         avg20 = fvavg(quotes, 20)
         avgmax = fvmax(quotes, 20)
-        self.vsteps[security_id] = [
+        self.volume_steps[security_id] = [
             (avg60, '季均量'),
             (avg20, '月均量'),
             (avgmax, '月最大量')
         ]
-        self.vsteps[security_id].sort(key=itemgetter(0))
-        self.vlevel[security_id] = -1
+        self.volume_steps[security_id].sort(key=itemgetter(0))
+        self.volume_curr[security_id] = -1
+        self.shaking_log[security_id] = []
+        self.freq_threshold[security_id] = 10
 
         close = quotes[0]['close']
-        level = self.get_level(security_id, close)
-        self.level[security_id] = level
-        if level == -1:
+        step = self.get_avgline_step(security_id, close)
+        self.avgline_curr[security_id] = step
+        if step == -1:
             lname = '所有均線之下'
         else:
-            lname = '%d日線' % self.steps[security_id][level][1]
+            lname = '%d日線' % self.avgline_steps[security_id][step][1]
 
-        logger = logging.getLogger('busm')
+        logger = logging.getLogger('bot')
         logger.info('[%s] %s', kline['id'], kline['name'])
-        logger.info('* 昨收: %.2f, 位階: %s', close, lname)
-        msg = '* 量能排列:'
-        prefix = ' '
-        for (vol, name) in self.vsteps[security_id]:
-            msg += '%s%s %d' % (prefix, name, vol)
-            if prefix == ' ':
-                prefix = ' > '
-        logger.info(msg)
+        logger.info('昨收: %.2f, 位階: %s', close, lname)
+        logger.info('量能排列:')
+        for (vol, name) in self.volume_steps[security_id]:
+            if len(name) == 3:
+                name = '  ' + name
+            logger.info('- %s  %d', name, vol)
 
-        msg = '* 均線排列:'
-        prefix = ' '
-        for (close, days) in self.steps[security_id]:
-            msg += '%s%dD %.2f' % (prefix, days, close)
-            if prefix == ' ':
-                prefix = ' > '
-        logger.info(msg)
+        logger.info('均線排列:')
+        for (close, days) in self.avgline_steps[security_id]:
+            logger.info('- %3d日  %.2f', days, close)
+        logger.info('$')
 
 def main():
     """

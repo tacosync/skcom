@@ -10,7 +10,7 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.9.3.2',
+    version='0.9.4.0',
     description='Get stock informations by Capital API.',
     long_description=longdesc,
     long_description_content_type='text/markdown',
@@ -26,7 +26,8 @@ setup(
         'pywin32 >= 1.0; platform_system=="Windows"',
         'packaging',
         'requests',
-        'PyYAML >= 5.1'
+        'PyYAML >= 5.1',
+        'busm >= 0.9.2'
     ],
     platforms=[
         'win_amd64'

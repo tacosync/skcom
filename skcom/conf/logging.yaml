@@ -2,10 +2,10 @@ version: 1
 disable_existing_loggers: true
 formatters:
   standard:
-    datefmt: '%Y-%m-%d %H:%M:%S'
-    format: '[%(asctime)s] %(levelname)-7s | %(message)s'
+    datefmt: "%Y-%m-%d %H:%M:%S"
+    format: "[%(asctime)s] %(levelname)-7s | %(message)s"
   simple:
-    datefmt: '%H:%M:%S'
+    datefmt: "%H:%M:%S"
     format: "[%(asctime)s] %(levelname)-7s | %(message)s"
   minimal:
     format: "%(levelname)-7s | %(message)s"
@@ -31,7 +31,7 @@ handlers:
     level: DEBUG
     formatter: message
     class: busm.BusmHandler
-    subject: 中文測試
+    subject: ""
     config: ~\.skcom\skcom.yaml
 loggers:
   skcom:
@@ -45,7 +45,7 @@ loggers:
     handlers:
       - console_mini
     propagate: yes
-  busm:
+  bot:
     level: DEBUG
     handlers:
       - telegram
