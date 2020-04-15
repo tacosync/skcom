@@ -18,6 +18,8 @@ from comtypes import COMError
 import requests
 from packaging import version
 from skcom.exception import ShellException
+from skcom.exception import NetworkException
+from requests.exceptions import ConnectionError
 
 def win_exec(cmd, admin_priv=False):
     charset = 'cp950'
@@ -286,7 +288,7 @@ def has_valid_mod():
     return result
 
 def generate_mod():
-    r"""
+    """
     產生 COM 元件的 comtypes.gen 對應模組
     """
     logger = logging.getLogger('helper')
@@ -296,7 +298,7 @@ def generate_mod():
 
 def clean_mod():
     r"""
-    TODO: 清除已產生的 site-packages\comtypes\gen\*.py
+    清除已產生的 site-packages\comtypes\gen\*.py
     """
     pkgdirs = site.getsitepackages()
     for pkgdir in pkgdirs:
@@ -328,13 +330,17 @@ def download_file(url, save_path):
     abs_path = check_dir(save_path)
     file_path = r'%s\%s' % (abs_path, url.split('/')[-1])
 
-    with requests.get(url, stream=True) as resp:
-        resp.raise_for_status()
-        with open(file_path, 'wb') as dlf:
-            for chunk in resp.iter_content(chunk_size=8192):
-                if chunk:
-                    dlf.write(chunk)
-            dlf.flush()
+    try:
+        with requests.get(url, stream=True) as resp:
+            resp.raise_for_status()
+            with open(file_path, 'wb') as dlf:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        dlf.write(chunk)
+                dlf.flush()
+    except ConnectionError as err:
+        # 拔網路線可以測試這段
+        raise NetworkException('無法下載: {}'.format(url))
 
     return file_path
 
