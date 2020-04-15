@@ -13,3 +13,12 @@ class ShellException(SkcomException):
 
     def getStdErr():
         return self.stderr
+
+class NetworkException(SkcomException):
+    """ 在 PowerShell 環境內執行失敗 """
+
+    def __init__(self, message):
+        self.message = message
+
+    def getMessage(self):
+        return self.message
