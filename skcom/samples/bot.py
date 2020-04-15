@@ -101,7 +101,8 @@ class StockBot(QuoteReceiver):
                     else:
                         action = '跌破'
                         days = self.avgline_steps[security_id][astep + 1][1]
-                    logger.info('[%s] %s %s, %s %s 日線 - 現價 %.2f', evt_time, security_id, security_name, action, days, close)
+                    logger.info('[%s] %s, %s %s 日線', security_id, security_name, action, days)
+                    logger.info('... 現價 %.2f - %s', close, evt_time)
                 else:
                     # 震盪狀況, 達到時間門檻才通知
                     min_passed = self.sub_minutes(self.shaking_log[security_id][0][0], self.shaking_log[security_id][-1][0])
@@ -114,7 +115,8 @@ class StockBot(QuoteReceiver):
                             days = self.avgline_steps[security_id][astep][1]
                         else:
                             days = self.avgline_steps[security_id][astep + 1][1]
-                        logger.info('[%s] %s %s, 在 %d 線震盪 %d 分鐘', evt_time, security_id, security_name, days, min_passed)
+                        logger.info('[%s] %s, 在 %d 線震盪', security_id, security_name, days)
+                        logger.info('... %d 分鐘 - %s', min_passed, evt_time)
 
                 # 記住目前位階
                 self.avgline_curr[security_id] = astep
@@ -123,7 +125,8 @@ class StockBot(QuoteReceiver):
             if vstep != self.volume_curr[security_id]:
                 self.volume_curr[security_id] = vstep
                 vname  = self.volume_steps[security_id][vstep][1]
-                logger.info('[%s] %s %s, 突破%s - 成交量 %d', evt_time, security_id, security_name, vname, volume)
+                logger.info('[%s] %s, 突破%s', security_id, security_name, vname)
+                logger.info('... 總量 %d - %s', volume, evt_time)
 
             # self.stop()
 
@@ -189,26 +192,14 @@ class StockBot(QuoteReceiver):
         logger.info('昨收: %.2f, 位階: %s', close, lname)
 
         logger.info('量能排列:')
-        message = '  '
         for (vol, name) in self.volume_steps[security_id]:
-            if message != '  ':
-                message += '  >  '
-            message += '%s %d' % (name, vol)
-        logger.info(message)
+            if len(name) == 3:
+                name = '\u3000' + name
+            logger.info('  %s %d', name, vol)
 
         logger.info('均線排列:')
-        idx = 0
-        message = ''
         for (close, days) in self.avgline_steps[security_id]:
-            if idx % 3 == 0:
-                prefix = '  '
-            else:
-                prefix = '  >  '
-            message += '%s%3d日 %.2f' % (prefix, days, close)
-            idx += 1
-            if idx % 3 == 0:
-                logger.info(message)
-                message = ''
+            logger.info('  \u3000%3d日 %.2f', days, close)
         logger.info('$')
 
 def main():
