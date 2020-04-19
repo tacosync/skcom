@@ -115,7 +115,7 @@ class StockBot(QuoteReceiver):
                             days = self.avgline_steps[security_id][astep][1]
                         else:
                             days = self.avgline_steps[security_id][astep + 1][1]
-                        logger.info('[%s] %s, 在 %d 線震盪', security_id, security_name, days)
+                        logger.info('[%s] %s, 在 %d 日線震盪', security_id, security_name, days)
                         logger.info('... %d 分鐘 - %s', min_passed, evt_time)
 
                 # 記住目前位階
