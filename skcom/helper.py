@@ -87,7 +87,7 @@ def win_exec(cmd, admin_priv=False):
                 stderr = comp.stderr.decode(charset)
             except:
                 stderr = 'Cannot decode stderr.'
-            raise ShellException(comp.returncode, stderr)
+                raise ShellException(comp.returncode, stderr)
 
         # stdout 解碼
         try:
