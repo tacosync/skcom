@@ -23,6 +23,7 @@
 * skcom.tools.clean 能移除 VC++ 2010 可轉發套件
 * API 版本跟進到 2.13.21
 * 改善 skcom.helper 的穩定性
+* 設定檔改用 YAML 格式
 
 0.9.3 修正首次安裝相依套件失敗問題
 
