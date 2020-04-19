@@ -21,7 +21,7 @@
 * 提供參數自動回答登入時的公告
 * 日 K 快取處理
 * skcom.tools.clean 能移除 VC++ 2010 可轉發套件
-* API 版本跟進到 2.13.21
+* API 版本跟進到 2.13.21, 確保逐筆交易正常運作
 * 改善 skcom.helper 的穩定性
 * 設定檔改用 YAML 格式
 
@@ -47,33 +47,34 @@
 安裝相依套件, 安裝前會提示要求管理者權限
 
 ```powershell
-(base) PS>pip install skcom
-(base) PS>python -m skcom.tools.setup
-安裝 Visual C++ 2010 可轉發套件
-Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
-安裝與註冊群益 API 元件
-群益 API 元件已安裝, 版本: 2.13.18.0
-生成 site-packages\comtypes\gen\SKCOMLib.py
-群益 API 元件模組已生成
+> pip install skcom
+> python -m skcom.tools.setup
+INFO    | 安裝 Visual C++ 2010 可轉發套件
+INFO    | Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
+INFO    | 安裝與註冊群益 API 元件
+INFO    | 群益 API 元件已安裝, 版本: 2.13.21.0
+INFO    | 生成 site-packages\comtypes\gen\SKCOMLib.py
+INFO    | 群益 API 元件模組已生成
 ```
 
 如果要升級群益 API 元件，建議先使用環境清除工具再重新安裝，避免 comtypes 自動生成碼與元件版本不相容
 
 ```powershell
-(base) PS>python -m skcom.tools.clean
-移除 comtypes 套件自動生成檔案
-  路徑 C:\Users\Unknown\AppData\Local\Programs\Python\Python37\lib\site-packages\comtypes\gen
-  移除 Scripting.py
-  移除 SKCOMLib.py
-  移除 stdole.py
-  移除 _00020430_0000_0000_C000_000000000046_0_2_0.py
-  移除 _420B2830_E718_11CF_893D_00A0C9054228_0_1_0.py
-  移除 _75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.py
-  移除 __pycache__
-移除群益 API 元件
-  路徑: C:\Users\Unknown\.skcom\lib
-  解除註冊: C:\Users\Unknown\.skcom\lib\SKCOM.dll
-  移除元件目錄
+> python -m skcom.tools.clean
+INFO    | 移除 comtypes 套件自動生成檔案
+INFO    |   路徑 C:\Users\Unknown\AppData\Local\Programs\Python\Python38\lib\site-packages\comtypes\gen
+INFO    |   移除 Scripting.py
+INFO    |   移除 SKCOMLib.py
+INFO    |   移除 stdole.py
+INFO    |   移除 _00020430_0000_0000_C000_000000000046_0_2_0.py
+INFO    |   移除 _420B2830_E718_11CF_893D_00A0C9054228_0_1_0.py
+INFO    |   移除 _75AAD71C_8F4F_4F1F_9AEE_3D41A8C9BA5E_0_1_0.py
+INFO    |   移除 __pycache__
+INFO    | 移除群益 API 元件
+INFO    |   路徑: C:\Users\Unknown\.skcom\lib
+INFO    |   解除註冊: C:\Users\Unknown\.skcom\lib\SKCOM.dll
+INFO    |   移除元件目錄
+INFO    | 移除 Visual C++ 2010 x64 Redistributable
 
 (base) PS>python -m skcom.tools.setup
 ```
@@ -82,7 +83,7 @@ Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
 ## 使用 Ticks 監聽範例
 
 ```powershell
-(base) PS>python -m skcom.samples.ticks
+> python -m skcom.samples.ticks
 登入成功
 連線成功
 連線就緒
@@ -105,7 +106,7 @@ Visual C++ 2010 可轉發套件已安裝, 版本: 10.0.40219.325
 ## 使用日 K 監聽範例
 
 ```powershell
-(base) PS>python -m skcom.samples.kline
+> python -m skcom.samples.kline
 登入成功
 連線成功
 連線就緒
