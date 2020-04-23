@@ -2,6 +2,8 @@ import unittest
 import subprocess
 from skcom.helper import *
 
+# pylint: disable=all
+
 class TestHelper(unittest.TestCase):
 
     def setUp(self):

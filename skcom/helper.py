@@ -17,11 +17,15 @@ import comtypes.client
 from comtypes import COMError
 import requests
 from packaging import version
-from skcom.exception import ShellException
-from skcom.exception import NetworkException
 from requests.exceptions import ConnectionError
 
+from skcom.exception import ShellException
+from skcom.exception import NetworkException
+
 def win_exec(cmd, admin_priv=False):
+    """
+    TODO
+    """
     charset = 'cp950'
 
     # ~ 自動轉換家目錄
@@ -338,7 +342,7 @@ def download_file(url, save_path):
                     if chunk:
                         dlf.write(chunk)
                 dlf.flush()
-    except ConnectionError as err:
+    except ConnectionError:
         # 拔網路線可以測試這段
         raise NetworkException('無法下載: {}'.format(url))
 
