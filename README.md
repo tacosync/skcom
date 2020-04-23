@@ -15,7 +15,7 @@
 
 ## 功能
 
-0.9.4 
+0.9.4
 
 * 新增 Telegram 機器人範例, 盤中監控價量
 * 提供參數自動回答登入時的公告
@@ -184,6 +184,8 @@ INFO    | 移除 Visual C++ 2010 x64 Redistributable
 [23:55:59] INFO    | 結束連線
 [23:56:00] INFO    | 監聽結束
 ```
+
+![手機示意圖](screenshot/screenshot-telegram.png)
 
 ## 交易日重要時機
 
