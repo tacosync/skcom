@@ -1,3 +1,11 @@
+"""
+釋出作業程式, 需要下列套件才能執行
+* pylint
+* setuptools
+* twine
+* wheel
+"""
+
 import subprocess
 import re
 import os
@@ -16,6 +24,7 @@ print('Build wheel.')
 cmd = 'python setup.py bdist_wheel --plat-name win_amd64'
 complete = subprocess.run(cmd, stdout=subprocess.PIPE)
 if complete.returncode != 0:
+    print('Package [wheel] is required.')
     exit(1)
 
 wheel = ''

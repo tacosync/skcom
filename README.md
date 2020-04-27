@@ -185,7 +185,7 @@ INFO    | 移除 Visual C++ 2010 x64 Redistributable
 [23:56:00] INFO    | 監聽結束
 ```
 
-![手機示意圖](screenshot/screenshot-telegram.png)
+![手機示意圖](https://github.com/tacosync/skcom/raw/master/screenshot/screenshot-telegram.png)
 
 ## 交易日重要時機
 
