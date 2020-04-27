@@ -10,7 +10,7 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.9.4.2',
+    version='0.9.4.3',
     description='Get stock informations by Capital API.',
     long_description=longdesc,
     long_description_content_type='text/markdown',
@@ -19,11 +19,15 @@ setup(
     license='MIT',
     author='Raymond Wu',
     package_data={
-        'skcom': ['conf/*', 'samples/*']
+        'skcom': ['conf/*', 'samples/*', 'tools/*']
     },
     install_requires=[
-        'comtypes >= 1.1.7',
-        'pywin32 >= 1.0',
+        # 注意! 這兩個套件不存在於 test.pypi.org
+        # 安裝測試版套件前需要預先裝好這兩項
+        # 安裝正式版套件則不會發生問題
+        'comtypes >= 1.1.7; platform_system=="Windows"',
+        'pywin32 >= 1.0; platform_system=="Windows"',
+        # 其他常規相依套件
         'packaging',
         'requests',
         'PyYAML >= 5.1',
