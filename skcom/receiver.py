@@ -118,7 +118,7 @@ class QuoteReceiver():
         """
         開始接收報價
         """
-        # pylint: disable=too-many-branches,too-many-nested-blocks,too-many-statements
+        # pylint: disable=too-many-branches,too-many-nested-blocks,too-many-statements,too-many-locals
 
         if self.ticks_hook is None and self.kline_hook is None:
             self.logger.info('沒有設定監聽項目')
@@ -206,7 +206,11 @@ class QuoteReceiver():
                     # 參考文件: 4-4-5 (p.97)
                     # 1. 參數 pSKStock 可以省略
                     # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
-                    cache_filename = r'{}\{}\kline\{}.json'.format(self.cache_path, iso_today, stock_no)
+                    cache_filename = r'{}\{}\kline\{}.json'.format(
+                        self.cache_path,
+                        iso_today,
+                        stock_no
+                    )
                     if os.path.isfile(cache_filename):
                         with open(cache_filename, 'r') as cache_file:
                             self.daily_kline[stock_no] = json.load(cache_file)
@@ -228,7 +232,11 @@ class QuoteReceiver():
                     # 參考文件: 4-4-9 (p.99), 4-4-21 (p.105)
                     # 1. 使用方式與文件相符
                     # 2. 台股日 K 使用全盤與 AM 盤效果相同
-                    cache_filename = r'{}\{}\kline\{}.json'.format(self.cache_path, iso_today, stock_no)
+                    cache_filename = r'{}\{}\kline\{}.json'.format(
+                        self.cache_path,
+                        iso_today,
+                        stock_no
+                    )
                     if os.path.isfile(cache_filename):
                         continue
                     self.logger.info('請求 %s 的日 K 資料', stock_no)
@@ -258,9 +266,15 @@ class QuoteReceiver():
                                     self.daily_kline[stock_id]['quotes'].reverse()
                                     with open(cache_filename, 'w') as cache_file:
                                         # TODO: 實際存檔時發現是 BIG5 編碼, 需要看有沒有辦法改 utf-8
-                                        json.dump(self.daily_kline[stock_id], cache_file, indent=2, ensure_ascii=False)
+                                        json.dump(
+                                            self.daily_kline[stock_id],
+                                            cache_file,
+                                            indent=2,
+                                            ensure_ascii=False
+                                        )
 
                                 # 觸發事件
+                                # pylint: disable=line-too-long
                                 self.daily_kline[stock_id]['quotes'] = self.daily_kline[stock_id]['quotes'][0:self.kline_days_limit]
                                 self.kline_hook(self.daily_kline[stock_id])
 

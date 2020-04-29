@@ -34,6 +34,6 @@ with open(cfg_yaml, 'r', encoding='utf-8') as cfg_file:
     # 如果 Telegram 機器人的設定無效, 就抽掉 logging handler
     if not enable_tgbot:
         del cfg_dict['handlers']['telegram']
-        cfg_dict['loggers']['busm']['handlers'].remove('telegram')
+        cfg_dict['loggers']['bot']['handlers'].remove('telegram')
 
     logging.config.dictConfig(cfg_dict)

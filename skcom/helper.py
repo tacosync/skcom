@@ -17,11 +17,15 @@ import comtypes.client
 from comtypes import COMError
 import requests
 from packaging import version
+from requests.exceptions import ConnectionError as RequestsConnectionError
+
 from skcom.exception import ShellException
 from skcom.exception import NetworkException
-from requests.exceptions import ConnectionError
 
 def win_exec(cmd, admin_priv=False):
+    """
+    執行程式, 取得 stdout
+    """
     charset = 'cp950'
 
     # ~ 自動轉換家目錄
@@ -38,7 +42,7 @@ def win_exec(cmd, admin_priv=False):
         try:
             open(stdout_path, 'w').close()
         except IOError:
-            return (-1, '')
+            raise ShellException(-1, '無法產生 stdout 暫存檔')
 
         deep_args = pack_arglist(cmd[1:])
 
@@ -64,14 +68,21 @@ def win_exec(cmd, admin_priv=False):
             '-Wait'
         ]
 
-        # 取 stdout
         stdout = ''
-        comp = subprocess.run(cmd, check=True)
-        with open(stdout_path, 'r') as stdout_file:
-            stdout = stdout_file.read()
-
-        # 移除暫存檔
-        os.remove(stdout_path)
+        try:
+            # 取 stdout
+            comp = subprocess.run(cmd, check=True)
+            with open(stdout_path, 'r') as stdout_file:
+                stdout = stdout_file.read()
+            # 移除暫存檔
+            os.remove(stdout_path)
+        except subprocess.CalledProcessError as ex:
+            # 執行過程發生錯誤
+            raise ShellException(ex.returncode, ex.stderr.decode(charset))
+        except Exception:
+            # 其他沒想到的狀況
+            message = 'Unexpected exception (%s): %s' % (type(ex).__name__, str(ex))
+            raise ShellException(-1, message)
     else:
         # 如果要使用 PowerShell, 含有空白字元的參數需要加上雙引號, 避免字串解析錯誤
         if cmd[0] == 'powershell.exe':
@@ -81,19 +92,20 @@ def win_exec(cmd, admin_priv=False):
 
         # 執行指令
         # 如果 shell=False, 安裝 vcredist 的時候會無法提升權限而失敗
-        comp = subprocess.run(cmd, shell=True, capture_output=True)
-        if comp.returncode != 0:
-            try:
-                stderr = comp.stderr.decode(charset)
-            except:
-                stderr = 'Cannot decode stderr.'
-                raise ShellException(comp.returncode, stderr)
-
-        # stdout 解碼
         try:
+            comp = subprocess.run(cmd, check=True, shell=True, capture_output=True)
             stdout = comp.stdout.decode(charset)
-        except:
-            raise ShellException(-1, 'Cannot decode stdout')
+        except subprocess.CalledProcessError as ex:
+            # 執行過程發生錯誤
+            raise ShellException(ex.returncode, ex.stderr.decode(charset))
+        except FileNotFoundError as ex:
+            # 沒有這個程式
+            message = 'No such executable (%s)' % cmd[0]
+            raise ShellException(-1, message)
+        except Exception:
+            # 其他沒想到的狀況
+            message = 'Unexpected exception (%s): %s' % (type(ex).__name__, str(ex))
+            raise ShellException(-1, message)
 
     return stdout
 
@@ -101,20 +113,91 @@ def pack_arglist(args):
     """
     處理 Start-Process -ArgumentList 的參數內容
     """
-    packed = list(map(lambda arg: '"{}"'.format(arg), args))
+    packed = list(map('"{}"'.format, args))
     packed = ' '.join(packed)
     packed = "'{}'".format(packed)
     return packed
+
+def reg_read_value(node, root=winreg.HKEY_LOCAL_MACHINE):
+    """
+    讀取單一值
+    """
+    (key, name) = node.split(':')
+    handle = winreg.OpenKey(root, key)
+    (value, _) = winreg.QueryValueEx(handle, name)
+    winreg.CloseKey(handle)
+    return value
+
+def reg_list_value(key, root=winreg.HKEY_LOCAL_MACHINE):
+    """
+    列舉機碼下的所有值
+    """
+    i = 0
+    values = {}
+    handle = winreg.OpenKey(root, key)
+
+    while True:
+        try:
+            (vname, value, _) = winreg.EnumValue(handle, i)
+            if vname == '':
+                vname = '(default)'
+            values[vname] = value
+            i += 1
+        except OSError:
+            # winreg.EnumValue(handle, i) 的 i 超出範圍
+            break
+
+    winreg.CloseKey(handle)
+    return values
+
+def reg_find_value(key, value, root=winreg.HKEY_LOCAL_MACHINE):
+    """
+    遞迴搜尋機碼下的值, 回傳一組 tuple (所在位置, 數值)
+    字串資料採用局部比對, 其餘型態採用完整比對
+    """
+    i = 0
+    handle = winreg.OpenKey(root, key)
+    vtype = type(value)
+
+    while True:
+        try:
+            values = reg_list_value(key)
+            for vname in values:
+                # 型態不同忽略
+                if not isinstance(values[vname], vtype):
+                    continue
+
+                leaf_node = key + ':' + vname
+                if isinstance(value, str):
+                    # 字串採用局部比對
+                    if value in values[vname]:
+                        return (leaf_node, values[vname])
+                else:
+                    # 其餘型態採用完整比對
+                    if value == values[vname]:
+                        return (leaf_node, values[vname])
+
+            subkey = key + '\\' + winreg.EnumKey(handle, i)
+            result = reg_find_value(subkey, value)
+            if result[0] != '':
+                return result
+
+            i += 1
+        except OSError:
+            # winreg.EnumKey(handle, i) 的 i 超出範圍
+            break
+
+    winreg.CloseKey(handle)
+    return ('', '')
 
 def verof_vcredist():
     """
     取得 Visual C++ 2010 可轉發套件版本資訊
     """
     try:
-        # 版本字串格式: v10.0.40219.325
-        keyname = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x64'
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, keyname)
-        pkg_ver = winreg.QueryValueEx(key, 'Version')[0].strip('v')
+        node = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x64:Version'
+        reg_val = reg_read_value(node)
+        pkg_ver = reg_val.strip('v')
         if not re.match(r'(\d+\.){3}\d+', pkg_ver):
             pkg_ver = '0.0.0.0'
     except FileNotFoundError:
@@ -169,28 +252,13 @@ def verof_skcom():
     檢查群益 API 元件是否已註冊
     """
     skcom_ver = '0.0.0.0'
-
-    # TODO: 比照 install_vcredist 用 winreg 處理
-    cmd = ['reg', 'query', r'HKLM\SOFTWARE\Classes\TypeLib', '/s', '/f', 'SKCOM.dll']
-
     try:
-        stdout = win_exec(cmd)
-        lines = stdout.split('\n')
-        for line in lines:
-            # 找 DLL 檔案路徑
-            match = re.match(r'.+REG_SZ\s+(.+SKCOM.dll)', line)
-            # print(match)
-            if match is not None:
-                # 取檔案摘要內容裡版本號碼
-                dll_path = match.group(1)
-                fso = comtypes.client.CreateObject('Scripting.FileSystemObject')
-                skcom_ver = fso.GetFileVersion(dll_path)
-                # skcom_ver = fso.GetFileVersion(r'C:\makeexception.txt')
-    except subprocess.CalledProcessError:
-        pass
+        (_, dll_path) = reg_find_value(r'SOFTWARE\Classes\TypeLib', 'SKCOM.dll')
+        fso = comtypes.client.CreateObject('Scripting.FileSystemObject')
+        skcom_ver = fso.GetFileVersion(dll_path)
     except COMError:
+        # TODO: 忘了什麼時候會炸掉
         pass
-
     return version.parse(skcom_ver)
 
 def install_skcom(install_ver):
@@ -338,7 +406,7 @@ def download_file(url, save_path):
                     if chunk:
                         dlf.write(chunk)
                 dlf.flush()
-    except ConnectionError as err:
+    except RequestsConnectionError:
         # 拔網路線可以測試這段
         raise NetworkException('無法下載: {}'.format(url))
 
