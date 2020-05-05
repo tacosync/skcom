@@ -12,11 +12,16 @@ formatters:
   message:
     format: "%(message)s"
 handlers:
-  logfile:
+  main_log:
     level: WARNING
     formatter: standard
     class: logging.handlers.RotatingFileHandler
     filename: ~/.skcom/logs/skcom.log
+  setup_log:
+    level: DEBUG
+    formatter: standard
+    class: logging.handlers.RotatingFileHandler
+    filename: ~/.skcom/logs/setup.log
   console:
     level: DEBUG
     formatter: simple
@@ -37,12 +42,13 @@ loggers:
   skcom:
     level: DEBUG
     handlers:
-      - logfile
+      - main_log
       - console
     propagate: yes
   helper:
-    level: INFO
+    level: DEBUG
     handlers:
+      - setup_log
       - console_mini
     propagate: yes
   bot:
