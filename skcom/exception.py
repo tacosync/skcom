@@ -49,3 +49,13 @@ class InstallationException(SkcomException):
 
     def __str__(self):
         return self.message
+
+class ConfigException(SkcomException):
+    """ 設定值無法使用 """
+
+    def __init__(self, message, loaded=False):
+        self.message = message
+        self.loaded  = loaded
+
+    def __str__(self):
+        return self.message

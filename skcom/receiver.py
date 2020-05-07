@@ -1,5 +1,5 @@
 """
-quicksk.receiver
+skcom.receiver
 """
 
 from datetime import datetime, timedelta
@@ -18,6 +18,9 @@ import pythoncom
 from comtypes import COMError
 import comtypes.client
 import comtypes.gen.SKCOMLib as sk
+
+from skcom.helper import load_config
+from skcom.exception import ConfigException
 
 class QuoteReceiver():
     """
@@ -67,29 +70,12 @@ class QuoteReceiver():
         if not os.path.isdir(self.cache_path):
             os.makedirs(self.cache_path)
 
-        valid_config = False
-        if not os.path.isfile(self.dst_conf):
-            # 複製設定檔範本
-            tpl_conf = os.path.dirname(os.path.realpath(__file__)) + r'\conf\skcom.yaml'
-            shutil.copy(tpl_conf, self.dst_conf)
-        else:
-            # 載入設定檔
-            with open(self.dst_conf, 'r', encoding='utf-8') as cfgfile:
-                self.config = yaml.load(cfgfile, Loader=yaml.SafeLoader)
-                # self.config = json.load(cfgfile)
-                if self.config['account'] != 'A123456789':
-                    valid_config = True
-
-        if not valid_config:
-            self.prompt()
-
-    def prompt(self):
-        """
-        設定檔使用提示
-        """
-        self.logger.info('請開啟設定檔，將帳號密碼改為您的證券帳號')
-        self.logger.info('設定檔路徑: %s', self.dst_conf)
-        sys.exit(0)
+        try:
+            self.config = load_config()
+        except ConfigException as ex:
+            if not ex.loaded:
+                print(ex)
+            exit(1)
 
     def ctrl_c(self, sig, frm):
         """

@@ -3,6 +3,7 @@ skcom.helper
 """
 
 import logging
+import logging.config
 import os.path
 import random
 import re
@@ -12,6 +13,7 @@ import subprocess
 import time
 import winreg
 import zipfile
+from getpass import getpass
 
 import comtypes.client
 from comtypes import COMError
@@ -19,10 +21,13 @@ import win32com.client
 import requests
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
+import yaml
 
+from skcom.crypto import decrypt_text
 from skcom.exception import ShellException
 from skcom.exception import NetworkException
 from skcom.exception import InstallationException
+from skcom.exception import ConfigException
 
 def win_exec(cmd, admin_priv=False):
     """
@@ -470,3 +475,96 @@ def check_dir(usr_path):
         os.makedirs(rel_path)
     abs_path = os.path.realpath(rel_path)
     return abs_path
+
+def reset_logging(cfg_skcom = None):
+    cfg_logging_path = '{}/conf/logging.yaml'.format(os.path.dirname(__file__))
+    with open(cfg_logging_path, 'r', encoding='utf-8') as cfg_logging_file:
+        cfg_logging = yaml.load(cfg_logging_file, Loader=yaml.SafeLoader)
+
+        # 自動替換 ~ 為家目錄, 以及自動產生 log 目錄
+        for name in cfg_logging['handlers']:
+            handler = cfg_logging['handlers'][name]
+            if 'filename' in handler:
+                if handler['filename'].startswith('~'):
+                    handler['filename'] = os.path.expanduser(handler['filename'])
+                dirname = os.path.dirname(handler['filename'])
+                if not os.path.isdir(dirname):
+                    os.makedirs(dirname)
+
+        # TODO: 完成新的作法之後就移除
+        """
+        # 檢查 Telegram 機器人設定是否有效
+        enable_tgbot = False
+        if cfg_skcom is not None:
+            blank_token = '1234567890:-----------------------------------'
+            enable_tgbot = cfg_skcom['telegram']['token'] != blank_token
+
+        # 如果 Telegram 機器人的設定無效, 就抽掉 logging handler
+        if not enable_tgbot:
+            del cfg_logging['handlers']['telegram']
+            cfg_logging['loggers']['bot']['handlers'].remove('telegram')
+        """
+
+        logging.config.dictConfig(cfg_logging)
+
+        # TODO: 原先採用 dictConfig 配置的作法, 要改為使用程式配置
+        #       否則遇到問題時無法進行錯誤處理
+
+def load_config():
+    """
+    載入設定檔
+    """
+    cfg_path = os.path.expanduser(r'~\.skcom\skcom.yaml')
+    enc_path = cfg_path + '.enc'
+    config = None
+    load_plain = False
+    logger = logging.getLogger('helper')
+    message = ''
+
+    # 嘗試讀取加密設定
+    try:
+        with open(enc_path, 'rb') as enc_file:
+            secret = enc_file.read()
+            password = getpass('請輸入設定檔密碼: ')
+            plain = decrypt_text(secret, password)
+            config = yaml.load(plain, Loader=yaml.SafeLoader)
+        logger.info('已載入加密設定')
+        logger.info('如果需要變更設定檔, 執行下列指令可以解密:')
+        logger.info('  python -m skcom.tools.cfdec')
+    except FileNotFoundError as ex:
+        load_plain = True
+    except Exception as ex:
+        # TODO: 這裡掛掉的可能性很多種, 有改善空間
+        message = str(ex)
+
+    # 嘗試讀取明文設定
+    if load_plain:
+        try:
+            with open(cfg_path, 'r', encoding='utf-8') as cfg_file:
+                config = yaml.load(cfg_file, Loader=yaml.SafeLoader)
+            logger.warning('目前設定檔沒有加密, 建議您加密避免帳號外流')
+            logger.warning('執行下列指令即可加密:')
+            logger.warning('  python -m skcom.tools.cfenc')
+        except FileNotFoundError as ex:
+            # 複製設定檔模板
+            tpl_path = os.path.dirname(os.path.realpath(__file__)) + r'\conf\skcom.yaml'
+            shutil.copy(tpl_path, cfg_path)
+            with open(cfg_path, 'r', encoding='utf-8') as cfg_file:
+                config = yaml.load(cfg_file, Loader=yaml.SafeLoader)
+        except Exception as ex:
+            message = str(ex)
+
+    if config is not None:
+        # 檢查設定檔是不是沒改過的模板
+        if config['account'] == 'A123456789':
+            logger.warning('請開啟設定檔, 將帳號密碼改為您的證券帳號')
+            logger.warning('設定檔路徑: %s', cfg_path)
+            raise ConfigException('設定檔尚未修改', loaded=True)
+    else:
+        # 檢查設定檔是否載入失敗
+        raise ConfigException('設定檔讀取失敗:\n%s' % message)
+
+    # TODO: 如果 BusmHandler 的程式配置實作完成, 可能就不需要用重新載入的設計
+    # reset_logging(config)
+
+    return config
