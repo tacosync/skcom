@@ -1,6 +1,7 @@
 """
 skcom.helper
 """
+# pylint: disable=broad-except, bare-except, pointless-string-statement
 
 import logging
 import logging.config
@@ -10,13 +11,11 @@ import re
 import shutil
 import site
 import subprocess
-import time
 import winreg
 import zipfile
 from getpass import getpass
 
 import comtypes.client
-from comtypes import COMError
 import win32com.client
 import requests
 from packaging import version
@@ -33,6 +32,7 @@ def win_exec(cmd, admin_priv=False):
     """
     執行程式, 取得 stdout
     """
+    # pylint: disable=too-many-locals, too-many-branches, too-many-statements
     charset = 'cp950'
 
     # ~ 自動轉換家目錄
@@ -233,6 +233,7 @@ def install_vcredist():
     """
     安裝 Visual C++ 2010 x64 Redistributable 10.0.40219.325
     """
+    # pylint: disable=invalid-name
     DEBUG_MODE = False
 
     # 下載與安裝 (安裝程式會自動切換系統管理員身分)
@@ -270,8 +271,6 @@ def remove_vcredist():
       * 方法2: Uninstall-Package ...
         * 缺點: UAC 對話方塊不會聚焦
     """
-
-    logger = logging.getLogger('helper')
     cmd = [
         'msiexec.exe',
         '/X{1D8E6291-B0D5-35EC-8441-6616F567A0F7}',
@@ -289,8 +288,8 @@ def verof_skcom():
         (_, dll_path) = reg_find_value(r'SOFTWARE\Classes\TypeLib', 'SKCOM.dll')
         fso = win32com.client.Dispatch('Scripting.FileSystemObject')
         skcom_ver = fso.GetFileVersion(dll_path)
-    except Exception as ex:
-        # TODO: 忘了什麼時候會炸掉
+    except:
+        # TODO: 忘了什麼時候會炸掉\
         pass
     return version.parse(skcom_ver)
 
@@ -476,7 +475,11 @@ def check_dir(usr_path):
     abs_path = os.path.realpath(rel_path)
     return abs_path
 
-def reset_logging(cfg_skcom = None):
+def reset_logging(cfg_skcom=None):
+    """
+    重新載入 logging 設定
+    """
+    # pylint: disable=unused-argument
     cfg_logging_path = '{}/conf/logging.yaml'.format(os.path.dirname(__file__))
     with open(cfg_logging_path, 'r', encoding='utf-8') as cfg_logging_file:
         cfg_logging = yaml.load(cfg_logging_file, Loader=yaml.SafeLoader)
@@ -492,7 +495,7 @@ def reset_logging(cfg_skcom = None):
                     os.makedirs(dirname)
 
         # TODO: 完成新的作法之後就移除
-        """
+        '''
         # 檢查 Telegram 機器人設定是否有效
         enable_tgbot = False
         if cfg_skcom is not None:
@@ -503,7 +506,7 @@ def reset_logging(cfg_skcom = None):
         if not enable_tgbot:
             del cfg_logging['handlers']['telegram']
             cfg_logging['loggers']['bot']['handlers'].remove('telegram')
-        """
+        '''
 
         logging.config.dictConfig(cfg_logging)
 

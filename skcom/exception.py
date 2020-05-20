@@ -45,6 +45,7 @@ class InstallationException(SkcomException):
     """ 套件安裝失敗 """
 
     def __init__(self, package, required_ver):
+        super().__init__()
         self.message = '%s %s 安裝失敗' % (package, required_ver)
 
     def __str__(self):
@@ -54,8 +55,9 @@ class ConfigException(SkcomException):
     """ 設定值無法使用 """
 
     def __init__(self, message, loaded=False):
+        super().__init__()
         self.message = message
-        self.loaded  = loaded
+        self.loaded = loaded
 
     def __str__(self):
         return self.message

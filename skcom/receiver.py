@@ -8,12 +8,10 @@ import logging
 import math
 import os
 import os.path
-import shutil
 import signal
 import sys
 import time
 
-import yaml
 import pythoncom
 from comtypes import COMError
 import comtypes.client
@@ -75,7 +73,7 @@ class QuoteReceiver():
         except ConfigException as ex:
             if not ex.loaded:
                 print(ex)
-            exit(1)
+            sys.exit(1)
 
     def ctrl_c(self, sig, frm):
         """

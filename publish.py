@@ -4,15 +4,36 @@
 * setuptools
 * twine
 * wheel
+
+win-x86_64
+win-x86
+win-amd64
 """
 
-import subprocess
-import re
 import os
+import re
+import subprocess
 import sys
 
+def run(cmd):
+    return subprocess.run(cmd.split(' '), check=True)
+
+try:
+    #print('Lint *.py files.')
+    #comp = run('python -m pylint -f colorized -d fixme skcom')
+    print('Build wheel.')
+    comp = run('python setup.py bdist_wheel --plat-name win-x86')
+    comp = run('python setup.py bdist_wheel --plat-name win-amd64')
+except subprocess.CalledProcessError as ex:
+    print(type(ex))
+    print(ex)
+except Exception as ex:
+    print(type(ex))
+    print(ex)
+
+"""
 # 檢查 Python 程式碼規範, 但容許 TODO 標記
-print('Lint *.py files.')
+
 cmd = 'pylint -f colorized -d fixme skcom'
 ret = os.system(cmd)
 if ret != 0:
@@ -20,7 +41,7 @@ if ret != 0:
     exit(1)
 
 # 打包
-print('Build wheel.')
+
 cmd = 'python setup.py bdist_wheel --plat-name win_amd64'
 complete = subprocess.run(cmd, stdout=subprocess.PIPE)
 if complete.returncode != 0:
@@ -50,3 +71,4 @@ else:
 print('Upload wheel file: %s (%s mode).' % (wheel, mode))
 if os.system(cmd) != 0:
     exit(1)
+"""
