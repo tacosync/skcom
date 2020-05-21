@@ -1,23 +1,7 @@
 from setuptools import setup, find_packages
 import sys
-import getopt
 
-# 檢查 --production 參數
-# TODO: 這裡也要放行 bdist_wheel 的參數
-releaseMode = False
-filtered_argv = [sys.argv[0]]
-(optlist, args) = getopt.getopt(sys.argv[1:], '', ['production'])
-
-for (name, value) in optlist:
-    if name != '--production':
-        filtered_argv.append(name)
-        filtered_argv.append(value)
-    else:
-        releaseMode = True
-
-filtered_argv += args
-sys.argv = filtered_argv
-
+# 基礎相依套件
 requiredPkgs = [
     'packaging',
     'requests',
@@ -25,16 +9,15 @@ requiredPkgs = [
     'busm >= 0.9.4'
 ]
 
-# production 模式才相依 comtypes, pywin32
+# production 才使用的相依套件
 # test.pypi.org 沒有這兩個套件
-if releaseMode:
+if '--production' in sys.argv:
+    at = sys.argv.index('--production')
+    sys.argv = sys.argv[0:at] + sys.argv[at+1:]
     requiredPkgs += [
         'comtypes >= 1.1.7; platform_system=="Windows"',
         'pywin32 >= 1.0; platform_system=="Windows"',
     ]
-
-print(requiredPkgs)
-sys.exit(1)
 
 # Load Markdown description.
 readme = open('README.md', 'r', encoding='utf-8')

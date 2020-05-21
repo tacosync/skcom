@@ -134,7 +134,8 @@ def wheel_check():
     if os.path.isdir('sandbox'):
         shutil.rmtree('sandbox')
 
-    wheel = get_wheel()
+    wheel32 = get_wheel('win_x86')
+    wheel64 = get_wheel('win_amd64')
     installed_py = get_installed_python()
     if len(installed_py) == 0:
         print('沒有任何可用的測試環境')
@@ -146,7 +147,8 @@ def wheel_check():
 
     for pyver in installed_py:
         print('測試 Python %s' % pyver)
-        test_in_virtualenv(pyver, wheel)
+        # test_in_virtualenv(pyver, wheel32)
+        test_in_virtualenv(pyver, wheel64)
         print('')
 
 def upload_to_pypi(test=False):
@@ -181,8 +183,8 @@ def upload_to_pypi(test=False):
 
 def main():
     # 確保不在 repo 目錄也能正常執行
-    BUSM_HOME = os.path.realpath(os.path.dirname(__file__) + '/..')
-    os.chdir(BUSM_HOME)
+    HOME = os.path.realpath(os.path.dirname(__file__) + '/..')
+    os.chdir(HOME)
 
     action = 'wheel'
     if len(sys.argv) > 1:
@@ -202,6 +204,4 @@ def main():
         print(ex)
 
 if __name__ == '__main__':
-    # main()
-    wheel = get_wheel()
-    print(wheel)
+    main()
