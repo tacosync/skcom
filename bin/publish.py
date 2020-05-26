@@ -45,7 +45,7 @@ def get_installed_python():
     }
 
     # 偵測已安裝版本, 同一個 minor 版採用最新的 patch 版
-    # TODO: 這段在 Windows 會噴 "找不到批次檔。" 不過實際上沒什麼大礙
+    # TODO: 這段在 Windows 會噴 "The batch file cannot be found." 不過實際上沒什麼大礙
     comp = subprocess.run(['pyenv', 'versions'], shell=True, check=True, capture_output=True)
     stdout = comp.stdout.decode('utf-8').strip().split('\n')
     for line in stdout:
@@ -147,7 +147,6 @@ def wheel_check():
 
     for pyver in installed_py:
         print('測試 Python %s' % pyver)
-        # test_in_virtualenv(pyver, wheel32)
         test_in_virtualenv(pyver, wheel64)
         print('')
 
@@ -160,26 +159,38 @@ def upload_to_pypi(test=False):
         print('參考: https://gist.github.com/ibrahim12/c6a296c1e8f409dbed2f')
 
     # 重新產生 wheel 與上傳前確認
-    wheel = get_wheel()
-    prompt = '準備上傳的檔案是 %s, 確定上傳嗎 [y/n]? ' % wheel
-    print(prompt, end='', flush=True)
-    ans = sys.stdin.readline().strip()
+    wheel32 = get_wheel('win32')
+    wheel64 = get_wheel('win_amd64')
+    print('準備上傳兩個檔案:')
+    print('  -', wheel32)
+    print('  -', wheel64)
+    ans = input('確定上傳嗎 [y/n]? ')
     if ans != 'y':
         print('取消上傳')
         return
 
     # 上傳 wheel
-    cmd = ['twine', 'upload']
+    cmd = ['python', '-m', 'twine', 'upload']
     if test:
         cmd.append('--repository')
         cmd.append('testpypi')
     cmd.append('--verbose')
-    cmd.append(wheel)
+    cmd.append(wheel32)
     comp = subprocess.run(cmd)
     if comp.returncode == 0:
-        print('上傳成功')
+        print(wheel32, '上傳成功')
     else:
-        print('上傳失敗')
+        print(wheel32, '上傳失敗')
+
+    """
+    cmd.pop()
+    cmd.append(wheel64)
+    comp = subprocess.run(cmd)
+    if comp.returncode == 0:
+        print(wheel64, '上傳成功')
+    else:
+        print(wheel64, '上傳失敗')
+    """
 
 def main():
     # 確保不在 repo 目錄也能正常執行
