@@ -4,6 +4,8 @@
 # * pylint
 # * setuptools
 # * wheel
+# * virtualenv
+# * twine
 # * pyenv or pyenv-win
 
 import configparser
@@ -121,11 +123,11 @@ def test_in_virtualenv(pyver, wheel):
 def wheel_check():
     """ 檢查 wheel 是否能正常運作在各個 Python 版本環境上 """
 
-    #print('檢查程式碼品質')
-    #ret = os.system('python -m pylint -f colorized busm')
-    #if ret != 0:
-    #    print('檢查沒通過，停止封裝')
-    #    exit(ret)
+    print('檢查程式碼品質')
+    ret = os.system('python -m pylint -f colorized busm')
+    if ret != 0:
+        print('檢查沒通過，停止封裝')
+        exit(ret)
 
     #print('檢查 README.md')
     # TODO:
@@ -134,7 +136,7 @@ def wheel_check():
     if os.path.isdir('sandbox'):
         shutil.rmtree('sandbox')
 
-    wheel32 = get_wheel('win_x86')
+    wheel32 = get_wheel('win32')
     wheel64 = get_wheel('win_amd64')
     installed_py = get_installed_python()
     if len(installed_py) == 0:
@@ -147,7 +149,10 @@ def wheel_check():
 
     for pyver in installed_py:
         print('測試 Python %s' % pyver)
-        test_in_virtualenv(pyver, wheel64)
+        if pyver.endswith('-amd64'):
+            test_in_virtualenv(pyver, wheel64)
+        else:
+            test_in_virtualenv(pyver, wheel32)
         print('')
 
 def upload_to_pypi(test=False):
@@ -182,7 +187,6 @@ def upload_to_pypi(test=False):
     else:
         print(wheel32, '上傳失敗')
 
-    """
     cmd.pop()
     cmd.append(wheel64)
     comp = subprocess.run(cmd)
@@ -190,7 +194,6 @@ def upload_to_pypi(test=False):
         print(wheel64, '上傳成功')
     else:
         print(wheel64, '上傳失敗')
-    """
 
 def main():
     # 確保不在 repo 目錄也能正常執行

@@ -10,7 +10,7 @@ def main():
         skcom.helper.clean_mod()
         logger.info('移除群益 API 元件')
         skcom.helper.remove_skcom()
-        logger.info('移除 Visual C++ 2010 x64 Redistributable')
+        logger.info('移除 Visual C++ 2010 可轉發套件')
         skcom.helper.remove_vcredist()
     except SkcomException as ex:
         logger.error(str(ex))

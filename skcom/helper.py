@@ -6,6 +6,7 @@ skcom.helper
 import logging
 import logging.config
 import os.path
+import platform
 import random
 import re
 import shutil
@@ -219,7 +220,11 @@ def verof_vcredist():
     注意!! 即使套件沒安裝也不可以噴例外, 否則會中斷安裝流程
     """
     try:
-        node = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x64:Version'
+        (width, _) = platform.architecture()
+        if width == '32bit':
+            node = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x86:Version'
+        else:
+            node = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x64:Version'
         reg_val = reg_read_value(node)
         pkg_ver = reg_val.strip('v')
         if not re.match(r'(\d+\.){3}\d+', pkg_ver):
@@ -231,19 +236,29 @@ def verof_vcredist():
 
 def install_vcredist():
     """
-    安裝 Visual C++ 2010 x64 Redistributable 10.0.40219.325
+    安裝 Visual C++ 2010 Redistributable 10.0.40219.325
     """
     # pylint: disable=invalid-name
     DEBUG_MODE = False
 
     # 下載與安裝 (安裝程式會自動切換系統管理員身分)
+    # https://www.microsoft.com/en-US/download/details.aspx?id=26999
     if not DEBUG_MODE:
-        url = 'https://download.microsoft.com/download/1/6/5/' + \
-              '165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe'
+        (width, _) = platform.architecture()
+        url = 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/'
+        if width == '32bit':
+            url += 'vcredist_x86.exe'
+        else:
+            url += 'vcredist_x64.exe'
+
         # 如果下載失敗, 會觸發 NetworkException
         vcexe = download_file(url, check_dir('~/.skcom'))
     else:
-        vcexe = '~/.skcom/vcredist_x64.exe'
+        if width == '32bit':
+            vcexe = '~/.skcom/vcredist_x86.exe'
+        else:
+            vcexe = '~/.skcom/vcredist_x64.exe'
+
 
     # 如果拒絕安裝, 會觸發 ShellException "(1) 存取被拒。"
     cmd = [vcexe, 'setup', '/passive']
@@ -271,11 +286,12 @@ def remove_vcredist():
       * 方法2: Uninstall-Package ...
         * 缺點: UAC 對話方塊不會聚焦
     """
-    cmd = [
-        'msiexec.exe',
-        '/X{1D8E6291-B0D5-35EC-8441-6616F567A0F7}',
-        '/passive'
-    ]
+    (width, _) = platform.architecture()
+    if width == '32bit':
+        uuid = '/X{F0C3E5D1-1ADE-321E-8167-68EF0DE699A5}'
+    else:
+        uuid = '/X{1D8E6291-B0D5-35EC-8441-6616F567A0F7}'
+    cmd = ['msiexec.exe', uuid, '/passive']
     win_exec(cmd)
 
 def verof_skcom():
@@ -311,10 +327,15 @@ def install_skcom(install_ver):
     # 只解壓縮 64-bits DLL 檔案, 其他非必要檔案不處理
     # 讀檔時需要用 CP437 編碼處理檔名, 寫檔時需要用 CP950 處理檔名
     # 暫不處理解壓縮例外
+    (width, _) = platform.architecture()
+    if width == '32bit':
+        pattern = r'元件/x86/.+\.dll$'
+    else:
+        pattern = r'元件/x64/.+\.dll$'
     with zipfile.ZipFile(file_path, 'r') as archive:
         for name437 in archive.namelist():
             name950 = name437.encode('cp437').decode('cp950')
-            if re.search(r'元件/x64/.+\.dll$', name950):
+            if re.search(pattern, name950):
                 dest_path = r'%s\%s' % (com_path, name950.split('/')[-1])
                 with archive.open(name437, 'r') as cmpf, \
                      open(dest_path, 'wb') as extf:
