@@ -1,33 +1,39 @@
 """
 skcom.helper
 """
+# pylint: disable=broad-except, bare-except, pointless-string-statement
 
 import logging
+import logging.config
 import os.path
+import platform
 import random
 import re
 import shutil
 import site
 import subprocess
-import time
 import winreg
 import zipfile
+from getpass import getpass
 
 import comtypes.client
-from comtypes import COMError
 import win32com.client
 import requests
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
+import yaml
 
+from skcom.crypto import decrypt_text
 from skcom.exception import ShellException
 from skcom.exception import NetworkException
 from skcom.exception import InstallationException
+from skcom.exception import ConfigException
 
 def win_exec(cmd, admin_priv=False):
     """
     執行程式, 取得 stdout
     """
+    # pylint: disable=too-many-locals, too-many-branches, too-many-statements
     charset = 'cp950'
 
     # ~ 自動轉換家目錄
@@ -214,7 +220,11 @@ def verof_vcredist():
     注意!! 即使套件沒安裝也不可以噴例外, 否則會中斷安裝流程
     """
     try:
-        node = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x64:Version'
+        (width, _) = platform.architecture()
+        if width == '32bit':
+            node = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x86:Version'
+        else:
+            node = r'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\10.0\VC\VCRedist\x64:Version'
         reg_val = reg_read_value(node)
         pkg_ver = reg_val.strip('v')
         if not re.match(r'(\d+\.){3}\d+', pkg_ver):
@@ -226,18 +236,29 @@ def verof_vcredist():
 
 def install_vcredist():
     """
-    安裝 Visual C++ 2010 x64 Redistributable 10.0.40219.325
+    安裝 Visual C++ 2010 Redistributable 10.0.40219.325
     """
+    # pylint: disable=invalid-name
     DEBUG_MODE = False
 
     # 下載與安裝 (安裝程式會自動切換系統管理員身分)
+    # https://www.microsoft.com/en-US/download/details.aspx?id=26999
     if not DEBUG_MODE:
-        url = 'https://download.microsoft.com/download/1/6/5/' + \
-              '165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe'
+        (width, _) = platform.architecture()
+        url = 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/'
+        if width == '32bit':
+            url += 'vcredist_x86.exe'
+        else:
+            url += 'vcredist_x64.exe'
+
         # 如果下載失敗, 會觸發 NetworkException
         vcexe = download_file(url, check_dir('~/.skcom'))
     else:
-        vcexe = '~/.skcom/vcredist_x64.exe'
+        if width == '32bit':
+            vcexe = '~/.skcom/vcredist_x86.exe'
+        else:
+            vcexe = '~/.skcom/vcredist_x64.exe'
+
 
     # 如果拒絕安裝, 會觸發 ShellException "(1) 存取被拒。"
     cmd = [vcexe, 'setup', '/passive']
@@ -265,13 +286,12 @@ def remove_vcredist():
       * 方法2: Uninstall-Package ...
         * 缺點: UAC 對話方塊不會聚焦
     """
-
-    logger = logging.getLogger('helper')
-    cmd = [
-        'msiexec.exe',
-        '/X{1D8E6291-B0D5-35EC-8441-6616F567A0F7}',
-        '/passive'
-    ]
+    (width, _) = platform.architecture()
+    if width == '32bit':
+        uuid = '/X{F0C3E5D1-1ADE-321E-8167-68EF0DE699A5}'
+    else:
+        uuid = '/X{1D8E6291-B0D5-35EC-8441-6616F567A0F7}'
+    cmd = ['msiexec.exe', uuid, '/passive']
     win_exec(cmd)
 
 def verof_skcom():
@@ -284,8 +304,8 @@ def verof_skcom():
         (_, dll_path) = reg_find_value(r'SOFTWARE\Classes\TypeLib', 'SKCOM.dll')
         fso = win32com.client.Dispatch('Scripting.FileSystemObject')
         skcom_ver = fso.GetFileVersion(dll_path)
-    except Exception as ex:
-        # TODO: 忘了什麼時候會炸掉
+    except:
+        # TODO: 忘了什麼時候會炸掉\
         pass
     return version.parse(skcom_ver)
 
@@ -307,10 +327,15 @@ def install_skcom(install_ver):
     # 只解壓縮 64-bits DLL 檔案, 其他非必要檔案不處理
     # 讀檔時需要用 CP437 編碼處理檔名, 寫檔時需要用 CP950 處理檔名
     # 暫不處理解壓縮例外
+    (width, _) = platform.architecture()
+    if width == '32bit':
+        pattern = r'元件/x86/.+\.dll$'
+    else:
+        pattern = r'元件/x64/.+\.dll$'
     with zipfile.ZipFile(file_path, 'r') as archive:
         for name437 in archive.namelist():
             name950 = name437.encode('cp437').decode('cp950')
-            if re.search(r'元件/x64/.+\.dll$', name950):
+            if re.search(pattern, name950):
                 dest_path = r'%s\%s' % (com_path, name950.split('/')[-1])
                 with archive.open(name437, 'r') as cmpf, \
                      open(dest_path, 'wb') as extf:
@@ -470,3 +495,100 @@ def check_dir(usr_path):
         os.makedirs(rel_path)
     abs_path = os.path.realpath(rel_path)
     return abs_path
+
+def reset_logging(cfg_skcom=None):
+    """
+    重新載入 logging 設定
+    """
+    # pylint: disable=unused-argument
+    cfg_logging_path = '{}/conf/logging.yaml'.format(os.path.dirname(__file__))
+    with open(cfg_logging_path, 'r', encoding='utf-8') as cfg_logging_file:
+        cfg_logging = yaml.load(cfg_logging_file, Loader=yaml.SafeLoader)
+
+        # 自動替換 ~ 為家目錄, 以及自動產生 log 目錄
+        for name in cfg_logging['handlers']:
+            handler = cfg_logging['handlers'][name]
+            if 'filename' in handler:
+                if handler['filename'].startswith('~'):
+                    handler['filename'] = os.path.expanduser(handler['filename'])
+                dirname = os.path.dirname(handler['filename'])
+                if not os.path.isdir(dirname):
+                    os.makedirs(dirname)
+
+        # TODO: 完成新的作法之後就移除
+        '''
+        # 檢查 Telegram 機器人設定是否有效
+        enable_tgbot = False
+        if cfg_skcom is not None:
+            blank_token = '1234567890:-----------------------------------'
+            enable_tgbot = cfg_skcom['telegram']['token'] != blank_token
+
+        # 如果 Telegram 機器人的設定無效, 就抽掉 logging handler
+        if not enable_tgbot:
+            del cfg_logging['handlers']['telegram']
+            cfg_logging['loggers']['bot']['handlers'].remove('telegram')
+        '''
+
+        logging.config.dictConfig(cfg_logging)
+
+        # TODO: 原先採用 dictConfig 配置的作法, 要改為使用程式配置
+        #       否則遇到問題時無法進行錯誤處理
+
+def load_config():
+    """
+    載入設定檔
+    """
+    cfg_path = os.path.expanduser(r'~\.skcom\skcom.yaml')
+    enc_path = cfg_path + '.enc'
+    config = None
+    load_plain = False
+    logger = logging.getLogger('helper')
+    message = ''
+
+    # 嘗試讀取加密設定
+    try:
+        with open(enc_path, 'rb') as enc_file:
+            secret = enc_file.read()
+            password = getpass('請輸入設定檔密碼: ')
+            plain = decrypt_text(secret, password)
+            config = yaml.load(plain, Loader=yaml.SafeLoader)
+        logger.info('已載入加密設定')
+        logger.info('如果需要變更設定檔, 執行下列指令可以解密:')
+        logger.info('  python -m skcom.tools.cfdec')
+    except FileNotFoundError as ex:
+        load_plain = True
+    except Exception as ex:
+        # TODO: 這裡掛掉的可能性很多種, 有改善空間
+        message = str(ex)
+
+    # 嘗試讀取明文設定
+    if load_plain:
+        try:
+            with open(cfg_path, 'r', encoding='utf-8') as cfg_file:
+                config = yaml.load(cfg_file, Loader=yaml.SafeLoader)
+            logger.warning('目前設定檔沒有加密, 建議您加密避免帳號外流')
+            logger.warning('執行下列指令即可加密:')
+            logger.warning('  python -m skcom.tools.cfenc')
+        except FileNotFoundError as ex:
+            # 複製設定檔模板
+            tpl_path = os.path.dirname(os.path.realpath(__file__)) + r'\conf\skcom.yaml'
+            shutil.copy(tpl_path, cfg_path)
+            with open(cfg_path, 'r', encoding='utf-8') as cfg_file:
+                config = yaml.load(cfg_file, Loader=yaml.SafeLoader)
+        except Exception as ex:
+            message = str(ex)
+
+    if config is not None:
+        # 檢查設定檔是不是沒改過的模板
+        if config['account'] == 'A123456789':
+            logger.warning('請開啟設定檔, 將帳號密碼改為您的證券帳號')
+            logger.warning('設定檔路徑: %s', cfg_path)
+            raise ConfigException('設定檔尚未修改', loaded=True)
+    else:
+        # 檢查設定檔是否載入失敗
+        raise ConfigException('設定檔讀取失敗:\n%s' % message)
+
+    # TODO: 如果 BusmHandler 的程式配置實作完成, 可能就不需要用重新載入的設計
+    # reset_logging(config)
+
+    return config
