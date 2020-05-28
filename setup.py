@@ -5,9 +5,7 @@ import sys
 requiredPkgs = [
     'packaging',
     'requests',
-    'PyYAML >= 5.1',
-    'busm >= 0.9.4',
-    'cryptography >= 2.9.0'
+    'busm >= 0.9.4'
 ]
 
 # production 才使用的相依套件
@@ -16,6 +14,8 @@ if '--production' in sys.argv:
     at = sys.argv.index('--production')
     sys.argv = sys.argv[0:at] + sys.argv[at+1:]
     requiredPkgs += [
+        'PyYAML >= 5.1',
+        'cryptography >= 2.9.0',
         'comtypes >= 1.1.7; platform_system=="Windows"',
         'pywin32 >= 1.0; platform_system=="Windows"',
     ]
