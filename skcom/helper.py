@@ -344,7 +344,7 @@ def install_skcom(install_ver):
     # 註冊元件
     # TODO: 使用者拒絕提供系統管理員權限時, 會觸發 ShellException,
     #       但是登錄檔依然能寫入成功, 原因需要再調查
-    cmd = ['regsvr32', r'%s\SKCOM.dll' % com_path]
+    cmd = ['regsvr32', '/s', r'%s\SKCOM.dll' % com_path]
     win_exec(cmd, admin_priv=True)
 
     # 版本檢查
@@ -380,7 +380,7 @@ def remove_skcom():
     logger = logging.getLogger('helper')
     logger.info('  路徑: %s', com_path)
     logger.info('  解除註冊: %s', com_file)
-    cmd = ['regsvr32', '/u', com_file]
+    cmd = ['regsvr32', '/s', '/u', com_file]
     win_exec(cmd, admin_priv=True)
 
     logger.info('  移除元件目錄')
