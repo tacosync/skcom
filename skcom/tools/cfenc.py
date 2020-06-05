@@ -13,10 +13,10 @@ def main():
         secret = b''
         with open(cfg_path, 'r', encoding='utf-8') as cfg_file:
             plain = cfg_file.read()
-            password = getpass('請輸入密碼, 至少 8 個字元:')
+            password = getpass('請輸入密碼, 至少 8 個字元: ')
             if len(password) < 8:
                 raise Exception('密碼長度太短, 取消加密作業')
-            passchk = getpass('再輸入一次密碼進行確認:')
+            passchk = getpass('   再輸入一次密碼進行確認: ')
             if password != passchk:
                 raise Exception('確認失敗, 取消加密作業')
             secret = encrypt_text(plain, password)

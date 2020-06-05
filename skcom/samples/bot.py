@@ -206,6 +206,8 @@ def main():
     """
     main()
     """
+    logger = logging.getLogger('bot')
+    logger.info('test')
     StockBot().start()
 
 if __name__ == '__main__':
