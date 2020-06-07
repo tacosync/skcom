@@ -5,7 +5,7 @@ import sys
 requiredPkgs = [
     'packaging',
     'requests',
-    'busm >= 0.9.4'
+    'busm >= 0.9.5'
 ]
 
 # production 才使用的相依套件
@@ -30,7 +30,7 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.9.5.0',
+    version='0.9.5',
     description='Get stock informations by Capital API.',
     long_description=longdesc,
     long_description_content_type='text/markdown',
