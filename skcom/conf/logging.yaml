@@ -32,12 +32,10 @@ handlers:
     formatter: minimal
     class: logging.StreamHandler
     stream: ext://sys.stdout
-  #telegram:
-  #  level: DEBUG
-  #  formatter: message
-  #  class: busm.BusmHandler
-  #  subject: ""
-  #  config: ~\.skcom\skcom.yaml
+  telegram:
+    level: DEBUG
+    formatter: message
+    class: busm.BusmHandler
 loggers:
   skcom:
     level: DEBUG

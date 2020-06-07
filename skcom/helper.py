@@ -22,6 +22,7 @@ import requests
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 import yaml
+import busm
 
 from skcom.crypto import decrypt_text
 from skcom.exception import ShellException
@@ -515,24 +516,7 @@ def reset_logging(cfg_skcom=None):
                 if not os.path.isdir(dirname):
                     os.makedirs(dirname)
 
-        # TODO: 完成新的作法之後就移除
-        '''
-        # 檢查 Telegram 機器人設定是否有效
-        enable_tgbot = False
-        if cfg_skcom is not None:
-            blank_token = '1234567890:-----------------------------------'
-            enable_tgbot = cfg_skcom['telegram']['token'] != blank_token
-
-        # 如果 Telegram 機器人的設定無效, 就抽掉 logging handler
-        if not enable_tgbot:
-            del cfg_logging['handlers']['telegram']
-            cfg_logging['loggers']['bot']['handlers'].remove('telegram')
-        '''
-
         logging.config.dictConfig(cfg_logging)
-
-        # TODO: 原先採用 dictConfig 配置的作法, 要改為使用程式配置
-        #       否則遇到問題時無法進行錯誤處理
 
 def load_config():
     """
@@ -580,15 +564,23 @@ def load_config():
 
     if config is not None:
         # 檢查設定檔是不是沒改過的模板
-        if config['account'] == 'A123456789':
+        if config['account'] != 'A123456789':
+            logger = logging.getLogger('bot')
+            try:
+                token = config['telegram']['token']
+                master = config['telegram']['master']
+                bh = busm.BusmHandler()
+                bh.setup_telegram(token, master)
+                logger.addHandler(bh)
+            except Exception as ex:
+                logger.error('Cannot setup BusmHandler.')
+                logger.error(ex)
+        else:
             logger.warning('請開啟設定檔, 將帳號密碼改為您的證券帳號')
             logger.warning('設定檔路徑: %s', cfg_path)
             raise ConfigException('設定檔尚未修改', loaded=True)
     else:
         # 檢查設定檔是否載入失敗
         raise ConfigException('設定檔讀取失敗:\n%s' % message)
-
-    # TODO: 如果 BusmHandler 的程式配置實作完成, 可能就不需要用重新載入的設計
-    # reset_logging(config)
 
     return config
