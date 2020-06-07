@@ -6,14 +6,21 @@
 此套件僅相容 Windows 64 位元, 無法確保在其它環境正常運作, 驗證環境如下:
 
 * Windows 10 64位元, Anaconda 2019.03 Python 3.7 version
-* Windows 10 64位元, Python 3.5
+* Windows 10 64位元, Python 3.8.2
 
 **注意事項**
 
 * **此套件並非群益證券開發, 使用問題請透過 GitHub Issue 回報**
 * **在群益證券開戶, 並且開通 API 使用權限後才能使用**
+* **不支援期貨與選擇權, 如有這類需求可 fork 一份修改, 但不接受這類功能的 Pull Request**
 
 ## 功能
+
+0.9.5
+
+* 新增設定檔加密功能, 避免證券戶的帳號密碼外洩
+* 修正 Anaconda 環境無法正常操作 Scripting.FileSystemObject 問題
+* 相容 32 位元環境
 
 0.9.4
 
