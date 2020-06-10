@@ -16,17 +16,16 @@ import subprocess
 import sys
 import platform
 
-def get_wheel(platname='any'):
+def get_wheel(platname='any', production=False):
     """ 製作 wheel 檔案與取得檔名 """
     wheel = False
-    comp = subprocess.run(
-        [
-            'python', 'setup.py', 'bdist_wheel',
-            '--plat-name', platname
-        ],
-        check=True,
-        capture_output=True
-    )
+    cmd = [
+        'python', 'setup.py', 'bdist_wheel',
+        '--plat-name', platname
+    ]
+    if production:
+        cmd.append('--production')
+    comp = subprocess.run(cmd, check=True, capture_output=True)
     stdout = comp.stdout.decode('utf-8').split('\n')
     for line in stdout:
         # 留意 Windows 斜線
@@ -155,7 +154,7 @@ def wheel_check():
             test_in_virtualenv(pyver, wheel32)
         print('')
 
-def upload_to_pypi(test=False):
+def upload_to_pypi(production=False):
     """ 上傳 wheel 到 PyPi """
 
     # 檢查 ~/.pypirc 是否存在
@@ -164,8 +163,8 @@ def upload_to_pypi(test=False):
         print('參考: https://gist.github.com/ibrahim12/c6a296c1e8f409dbed2f')
 
     # 重新產生 wheel 與上傳前確認
-    wheel32 = get_wheel('win32')
-    wheel64 = get_wheel('win_amd64')
+    wheel32 = get_wheel('win32', production)
+    wheel64 = get_wheel('win_amd64', production)
     print('準備上傳兩個檔案:')
     print('  -', wheel32)
     print('  -', wheel64)
@@ -176,7 +175,7 @@ def upload_to_pypi(test=False):
 
     # 上傳 wheel
     cmd = ['python', '-m', 'twine', 'upload']
-    if test:
+    if not production:
         cmd.append('--repository')
         cmd.append('testpypi')
     cmd.append('--verbose')
@@ -206,9 +205,9 @@ def main():
 
     try:
         if action == 'release':
-            upload_to_pypi()
-        elif action == 'test':
             upload_to_pypi(True)
+        elif action == 'test':
+            upload_to_pypi()
         elif action == 'wheel':
             wheel_check()
         else:
