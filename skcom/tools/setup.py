@@ -20,7 +20,7 @@ def main():
             current_ver = skcom.helper.install_vcredist()
         logger.info('Visual C++ 2010 可轉發套件已安裝, 版本: %s', current_ver)
 
-        skcom_verstr = '2.13.22'
+        skcom_verstr = '2.13.23'
         required_ver = version.parse(skcom_verstr)
         current_ver = skcom.helper.verof_skcom()
         if current_ver < required_ver:

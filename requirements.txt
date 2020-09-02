@@ -1,0 +1,7 @@
+busm>=0.9.5
+comtypes>=1.1.7
+cryptography>=2.9.0
+packaging
+pywin32>=1.0
+PyYAML>=5.1
+requests

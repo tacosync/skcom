@@ -97,6 +97,14 @@ class QuoteReceiver():
         """
         self.ticks_hook = hook
         self.ticks_include_history = include_history
+    
+    def fix_encoding(self, thestr):
+         # TODO: 股票名稱的編碼可能會被 Python 的參數影響, 需要測試一下
+        # 換了 Python 版本以後, 這樣才能取得正確中文字
+        newstr = bytes(map(ord, thestr)).decode('cp950')
+        # 原本這樣就可以
+        # newstr = thestr
+        return newstr
 
     def start(self):
         """
@@ -196,17 +204,23 @@ class QuoteReceiver():
                         stock_no
                     )
                     if os.path.isfile(cache_filename):
-                        with open(cache_filename, 'r') as cache_file:
-                            self.daily_kline[stock_no] = json.load(cache_file)
-                            self.logger.info('載入 %s 的日 K 快取', stock_no)
-                        continue
+                        with open(cache_filename, 'r', encoding='utf-8') as cache_file:
+                            try:
+                                self.daily_kline[stock_no] = json.load(cache_file)
+                                self.logger.info('載入 %s 的日 K 快取', stock_no)
+                                continue
+                            except json.decoder.JSONDecodeError:
+                                self.logger.warn('%s 日 K 快取載入失敗: 不是有效的 JSON 格式', stock_no)
+                            except UnicodeDecodeError:
+                                self.logger.warn('%s 日 K 快取載入失敗: 不是 UTF-8 編碼', stock_no)
                     (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByNo(stock_no)
                     if n_code != 0:
                         self.handle_sk_error('GetStockByNo()', n_code)
                         return
                     self.daily_kline[p_stock.bstrStockNo] = {
                         'id': p_stock.bstrStockNo,
-                        'name': p_stock.bstrStockName,
+                        'name': self.fix_encoding(p_stock.bstrStockName),
+                        'name': name,
                         'quotes': []
                     }
                 self.logger.info('股票名稱載入完成')
@@ -248,8 +262,8 @@ class QuoteReceiver():
                                 # 寫入快取檔
                                 if not os.path.isfile(cache_filename):
                                     self.daily_kline[stock_id]['quotes'].reverse()
-                                    with open(cache_filename, 'w') as cache_file:
-                                        # TODO: 實際存檔時發現是 BIG5 編碼, 需要看有沒有辦法改 utf-8
+                                    # Python for windows 可能會用 BIG5 存檔, 自己指定比較保險
+                                    with open(cache_filename, 'w', encoding='utf-8') as cache_file:
                                         json.dump(
                                             self.daily_kline[stock_id],
                                             cache_file,
@@ -399,7 +413,7 @@ class QuoteReceiver():
             ppow = math.pow(10, p_stock.sDecimal)
             self.handle_ticks(
                 p_stock.bstrStockNo,
-                p_stock.bstrStockName,
+                self.fix_encoding(p_stock.bstrStockName),
                 timestr,
                 nBid / ppow,
                 nAsk / ppow,
@@ -453,7 +467,7 @@ class QuoteReceiver():
         ppow = math.pow(10, p_stock.sDecimal)
         self.handle_ticks(
             p_stock.bstrStockNo,
-            p_stock.bstrStockName,
+            self.fix_encoding(p_stock.bstrStockName),
             timestr,
             nBid / ppow,
             nAsk / ppow,
