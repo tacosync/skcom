@@ -220,7 +220,6 @@ class QuoteReceiver():
                     self.daily_kline[p_stock.bstrStockNo] = {
                         'id': p_stock.bstrStockNo,
                         'name': self.fix_encoding(p_stock.bstrStockName),
-                        'name': name,
                         'quotes': []
                     }
                 self.logger.info('股票名稱載入完成')
