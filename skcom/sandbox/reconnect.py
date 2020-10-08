@@ -4,6 +4,7 @@ import logging
 import math
 import os
 import os.path
+import re
 import signal
 import sys
 import time
@@ -59,15 +60,20 @@ class MiniQuoteReceiver():
             self.login()
             self.connect()
             
+            # 聽牌
+            (page_no, n_code) = self.skq.SKQuoteLib_RequestTicks(-1, "2330")
+            if n_code != 0:
+                self.handle_sk_error('RequestKLine()', n_code)
+            print(n_code)
+
             # 保持連線
             while not self.done:
-                print("保持連線")
+                # print("保持連線")
                 time.sleep(1)
-                pythoncom.PumpWaitingMessages() # pylint: disable=no-member
+                pythoncom.PumpWaitingMessages()
         except COMError as ex:
             self.logger.error('init() 發生不預期狀況')
             self.logger.error(ex)
-        # TODO: 需要再補充其他類型的例外
 
     def login(self):
         n_code = self.skc.SKCenterLib_Login(self.config['account'], self.config['password'])
@@ -81,23 +87,20 @@ class MiniQuoteReceiver():
         if n_code != 0:
             self.handle_sk_error('EnterMonitor()', n_code)
             return
-        print('連線成功')
+        #print('連線成功')
 
         while not self.ready and not self.done:
             time.sleep(1)
             pythoncom.PumpWaitingMessages()
-        print('連線就緒')
+        #print('連線就緒')
 
     def stop(self):
         if self.skq is not None:
             self.stopping = True
-            print("Call LeaveMonitor")
             n_code = self.skq.SKQuoteLib_LeaveMonitor()
-            print(n_code)
             if n_code != 0:
-                self.handle_sk_error('EnterMonitor', n_code)
+                self.handle_sk_error('LeaveMonitor()', n_code)
         else:
-            print("self.skq is None")
             self.done = True
 
     def handle_sk_error(self, action, n_code):
@@ -118,15 +121,26 @@ class MiniQuoteReceiver():
         # 3002 正常斷線
         # 3003 已就緒
         # 3021 異常斷線
+        if nKind == 3001:
+            print('連線成功')
         if nKind == 3003:
             self.ready = True
+            print('連線就緒')
         if nKind == 3002:
             self.done = True
             print('結束連線')
         if nKind == 3021:
-            # self.done = True
+            self.ready = False
             print('異常斷線')
+            self.login()
             self.connect()
+
+    def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
+                      nDate, nTimehms, nTimemillis, \
+                      nBid, nAsk, nClose, nQty, nSimulate):
+        time_str = "{}".format(nTimehms)
+        time_pretty = re.sub(r'(\d{2})(\d{2})(\d{2})', r'\1:\2:\3', time_str)
+        print("[{}] {:2.2f}".format(time_pretty, nClose / 100))
 
 def main():
     MiniQuoteReceiver().start()
