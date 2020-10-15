@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import http.client as httplib
 import json
 import logging
 import math
@@ -24,6 +25,7 @@ class MiniQuoteReceiver():
         self.skq = None
         self.skr = None
         self.ready = False
+        self.resume = False
         self.done = False
         self.stopping = False
         self.log_path = os.path.expanduser(r'~\.skcom\logs\capital')
@@ -57,42 +59,54 @@ class MiniQuoteReceiver():
             skh1 = comtypes.client.GetEvents(self.skq, self)
             
             # 連線
-            self.login()
             self.connect()
-            
-            # 聽牌
-            (page_no, n_code) = self.skq.SKQuoteLib_RequestTicks(-1, "2330")
-            if n_code != 0:
-                self.handle_sk_error('RequestKLine()', n_code)
-            print(n_code)
 
             # 保持連線
             while not self.done:
-                # print("保持連線")
+                print('Loop start() ...')
                 time.sleep(1)
                 pythoncom.PumpWaitingMessages()
         except COMError as ex:
             self.logger.error('init() 發生不預期狀況')
             self.logger.error(ex)
 
-    def login(self):
+    def connect(self):
         n_code = self.skc.SKCenterLib_Login(self.config['account'], self.config['password'])
         if n_code != 0:
             self.handle_sk_error('Login()', n_code)
             return
-        print('登入成功')
 
-    def connect(self):
         n_code = self.skq.SKQuoteLib_EnterMonitor()
         if n_code != 0:
             self.handle_sk_error('EnterMonitor()', n_code)
             return
-        #print('連線成功')
 
         while not self.ready and not self.done:
             time.sleep(1)
             pythoncom.PumpWaitingMessages()
-        #print('連線就緒')
+        
+        (page_no, n_code) = self.skq.SKQuoteLib_RequestTicks(-1, "2330")
+        if n_code != 0:
+            self.handle_sk_error('RequestKLine()', n_code)
+
+    def reconnect(self):
+        print('reconnect() A')
+        n_code = self.skq.SKQuoteLib_EnterMonitor()
+        if n_code != 0:
+            self.handle_sk_error('EnterMonitor()', n_code)
+            return
+
+        print('reconnect() B')
+        while not self.resume:
+            print('Loop reconnect ...')
+            time.sleep(1)
+            pythoncom.PumpWaitingMessages()
+
+        print('reconnect() C')
+        (page_no, n_code) = self.skq.SKQuoteLib_RequestTicks(-1, "2330")
+        if n_code != 0:
+            self.handle_sk_error('RequestKLine()', n_code)
+        print('reconnect() D')
 
     def stop(self):
         if self.skq is not None:
@@ -116,12 +130,15 @@ class MiniQuoteReceiver():
             action = '狀態變更 %d' % nKind
             self.handle_sk_error(action, nCode)
 
+        print('nKind={}, nCode={}'.format(nKind, nCode))
+
         # 參考文件: 6. 代碼定義表 (p.170)
         # 3001 已連線
         # 3002 正常斷線
         # 3003 已就緒
         # 3021 異常斷線
         if nKind == 3001:
+            self.resume = True
             print('連線成功')
         if nKind == 3003:
             self.ready = True
@@ -130,10 +147,9 @@ class MiniQuoteReceiver():
             self.done = True
             print('結束連線')
         if nKind == 3021:
-            self.ready = False
+            self.resume = False
             print('異常斷線')
-            self.login()
-            self.connect()
+            self.reconnect()
 
     def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
                       nDate, nTimehms, nTimemillis, \
@@ -142,8 +158,22 @@ class MiniQuoteReceiver():
         time_pretty = re.sub(r'(\d{2})(\d{2})(\d{2})', r'\1:\2:\3', time_str)
         print("[{}] {:2.2f}".format(time_pretty, nClose / 100))
 
+def wait_internet_on():
+    connected = False
+    while not connected:
+        conn = httplib.HTTPConnection("216.58.192.142", timeout=3)
+        try:
+            conn.request("HEAD", "/")
+            connected = True
+        except:
+            time.sleep(1)
+        finally:
+            conn.close()
+
 def main():
-    MiniQuoteReceiver().start()
+    # MiniQuoteReceiver().start()
+    wait_internet_on()
+    print('Done')
 
 if __name__ == "__main__":
     main()
