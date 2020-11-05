@@ -7,12 +7,30 @@ from skcom.helper import *
 class TestHelper(unittest.TestCase):
 
     def setUp(self):
+        """
+        Sets the result of this thread.
+
+        Args:
+            self: (todo): write your description
+        """
         pass
 
     def tearDown(self):
+        """
+        Tear down the next callable.
+
+        Args:
+            self: (todo): write your description
+        """
         pass
 
     def test_PsExec(self):
+        """
+        Run test test test.
+
+        Args:
+            self: (todo): write your description
+        """
         # 測試一般使用者身分執行
         cmd = ['tasklist', '/fi', 'imagename eq svchost.exe', '/fo', 'csv']
         stdout = win_exec(cmd)

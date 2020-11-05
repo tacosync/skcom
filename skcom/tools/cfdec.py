@@ -5,6 +5,11 @@ from getpass import getpass
 from skcom.crypto import decrypt_text
 
 def main():
+    """
+    Main function.
+
+    Args:
+    """
     logger = logging.getLogger('helper')
     cfg_path = os.path.expanduser(r'~\.skcom\skcom.yaml')
 

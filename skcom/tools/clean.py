@@ -4,6 +4,11 @@ import skcom.helper
 from skcom.exception import SkcomException
 
 def main():
+    """
+    Main function.
+
+    Args:
+    """
     logger = logging.getLogger('helper')
     try:
         logger.info('移除 comtypes 套件自動生成檔案')

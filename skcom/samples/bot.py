@@ -15,6 +15,12 @@ except ImportError as ex:
 class StockBot(QuoteReceiver):
 
     def __init__(self):
+        """
+        Initialize a new volume.
+
+        Args:
+            self: (todo): write your description
+        """
         super().__init__()
 
         # 狀態值初始化
@@ -66,6 +72,13 @@ class StockBot(QuoteReceiver):
         return step
 
     def on_receive_ticks(self, tick):
+        """
+        Handle a tick_receive
+
+        Args:
+            self: (todo): write your description
+            tick: (todo): write your description
+        """
         if self.avgline_steps:
             logger = logging.getLogger('bot')
 

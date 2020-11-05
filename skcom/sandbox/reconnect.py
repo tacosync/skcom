@@ -21,6 +21,13 @@ from skcom.exception import ConfigException
 class MiniQuoteReceiver():
 
     def __init__(self, gui_mode=False):
+        """
+        Initialize config.
+
+        Args:
+            self: (todo): write your description
+            gui_mode: (str): write your description
+        """
         self.skc = None
         self.skq = None
         self.skr = None
@@ -42,11 +49,25 @@ class MiniQuoteReceiver():
             sys.exit(1)
 
     def ctrl_c(self, sig, frm):
+        """
+        Print the keyboard.
+
+        Args:
+            self: (todo): write your description
+            sig: (todo): write your description
+            frm: (array): write your description
+        """
         if not self.done and not self.stopping:
             print('偵測到 Ctrl+C, 結束監聽')
             self.stop()
 
     def start(self):
+        """
+        Starts the client.
+
+        Args:
+            self: (todo): write your description
+        """
         try:
             signal.signal(signal.SIGINT, self.ctrl_c)
             
@@ -71,6 +92,12 @@ class MiniQuoteReceiver():
             self.logger.error(ex)
 
     def connect(self):
+        """
+        Connects the connection.
+
+        Args:
+            self: (todo): write your description
+        """
         n_code = self.skc.SKCenterLib_Login(self.config['account'], self.config['password'])
         if n_code != 0:
             self.handle_sk_error('Login()', n_code)
@@ -90,6 +117,12 @@ class MiniQuoteReceiver():
             self.handle_sk_error('RequestKLine()', n_code)
 
     def reconnect(self):
+        """
+        Reconnects connection
+
+        Args:
+            self: (todo): write your description
+        """
         print('reconnect() A')
         n_code = self.skq.SKQuoteLib_EnterMonitor()
         if n_code != 0:
@@ -109,6 +142,12 @@ class MiniQuoteReceiver():
         print('reconnect() D')
 
     def stop(self):
+        """
+        Stop the code.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.skq is not None:
             self.stopping = True
             n_code = self.skq.SKQuoteLib_LeaveMonitor()
@@ -118,13 +157,37 @@ class MiniQuoteReceiver():
             self.done = True
 
     def handle_sk_error(self, action, n_code):
+        """
+        Handle an error.
+
+        Args:
+            self: (todo): write your description
+            action: (str): write your description
+            n_code: (int): write your description
+        """
         skmsg = self.skc.SKCenterLib_GetReturnCodeMessage(n_code)
         print('執行動作 [%s] 時發生錯誤, 詳細原因: %s' % (action, skmsg))
 
     def OnReplyMessage(self, bstrUserID, bstrMessage):
+        """
+        Returns the message
+
+        Args:
+            self: (todo): write your description
+            bstrUserID: (todo): write your description
+            bstrMessage: (str): write your description
+        """
         return 0xffff
     
     def OnConnection(self, nKind, nCode):
+        """
+        Called when the nCode
+
+        Args:
+            self: (todo): write your description
+            nKind: (str): write your description
+            nCode: (str): write your description
+        """
         if nCode != 0:
             # 這裡的 nCode 沒有對應的文字訊息
             action = '狀態變更 %d' % nKind
@@ -154,11 +217,33 @@ class MiniQuoteReceiver():
     def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
                       nDate, nTimehms, nTimemillis, \
                       nBid, nAsk, nClose, nQty, nSimulate):
+        """
+        Prints the ticks ] time
+
+        Args:
+            self: (todo): write your description
+            sMarketNo: (str): write your description
+            sStockidx: (str): write your description
+            nPtr: (todo): write your description
+            nDate: (todo): write your description
+            nTimehms: (todo): write your description
+            nTimemillis: (todo): write your description
+            nBid: (str): write your description
+            nAsk: (str): write your description
+            nClose: (bool): write your description
+            nQty: (str): write your description
+            nSimulate: (str): write your description
+        """
         time_str = "{}".format(nTimehms)
         time_pretty = re.sub(r'(\d{2})(\d{2})(\d{2})', r'\1:\2:\3', time_str)
         print("[{}] {:2.2f}".format(time_pretty, nClose / 100))
 
 def wait_internet_on():
+    """
+    Wait until a connection to be closed.
+
+    Args:
+    """
     connected = False
     while not connected:
         conn = httplib.HTTPConnection("216.58.192.142", timeout=3)
@@ -171,6 +256,11 @@ def wait_internet_on():
             conn.close()
 
 def main():
+    """
+    Main function.
+
+    Args:
+    """
     # MiniQuoteReceiver().start()
     wait_internet_on()
     print('Done')
