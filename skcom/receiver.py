@@ -31,6 +31,13 @@ class QuoteReceiver():
     # pylint: disable=too-many-instance-attributes
 
     def __init__(self, gui_mode=False):
+        """
+        Initialize the gui
+
+        Args:
+            self: (todo): write your description
+            gui_mode: (str): write your description
+        """
         # 狀態屬性
         self.done = False
         self.ready = False
@@ -99,6 +106,13 @@ class QuoteReceiver():
         self.ticks_include_history = include_history
     
     def fix_encoding(self, thestr):
+        """
+        Fix the encoding of the string encoding
+
+        Args:
+            self: (todo): write your description
+            thestr: (str): write your description
+        """
          # TODO: 股票名稱的編碼可能會被 Python 的參數影響, 需要測試一下
         # 換了 Python 版本以後, 這樣才能取得正確中文字
         newstr = bytes(map(ord, thestr)).decode('cp950')

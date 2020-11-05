@@ -195,6 +195,11 @@ def upload_to_pypi(production=False):
         print(wheel64, '上傳失敗')
 
 def main():
+    """
+    Main function.
+
+    Args:
+    """
     # 確保不在 repo 目錄也能正常執行
     HOME = os.path.realpath(os.path.dirname(__file__) + '/..')
     os.chdir(HOME)
