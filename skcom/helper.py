@@ -188,14 +188,18 @@ def reg_find_value(key, value, root=winreg.HKEY_LOCAL_MACHINE):
         try:
             values = reg_list_value(key)
             for vname in values:
+                # 除錯用
+                # if key == r'SOFTWARE\Classes\TypeLib\{75AAD71C-8F4F-4F1F-9AEE-3D41A8C9BA5E}\1.0\0\win32':
+                #     print(vname, values[vname], value)
+
                 # 型態不同忽略
                 if not isinstance(values[vname], vtype):
                     continue
 
                 leaf_node = key + ':' + vname
                 if isinstance(value, str):
-                    # 字串採用局部比對
-                    if value in values[vname]:
+                    # 字串採用局部比對, 不分大小寫
+                    if value.lower() in values[vname].lower():
                         return (leaf_node, values[vname])
                 else:
                     # 其餘型態採用完整比對
@@ -303,11 +307,15 @@ def verof_skcom():
     skcom_ver = '0.0.0.0'
     try:
         (_, dll_path) = reg_find_value(r'SOFTWARE\Classes\TypeLib', 'SKCOM.dll')
-        fso = win32com.client.Dispatch('Scripting.FileSystemObject')
-        skcom_ver = fso.GetFileVersion(dll_path)
-    except:
-        # TODO: 忘了什麼時候會炸掉\
+        if dll_path != '':
+            fso = win32com.client.Dispatch('Scripting.FileSystemObject')
+            skcom_ver = fso.GetFileVersion(dll_path)
+        else:
+            print('無法從登錄編輯找到版本資訊')
+    except Exception as ex:
+        # TODO: 忘了什麼時候會炸掉
         pass
+
     return version.parse(skcom_ver)
 
 def install_skcom(install_ver):
