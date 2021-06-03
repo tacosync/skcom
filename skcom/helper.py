@@ -311,7 +311,8 @@ def verof_skcom():
             fso = win32com.client.Dispatch('Scripting.FileSystemObject')
             skcom_ver = fso.GetFileVersion(dll_path)
         else:
-            print('無法從登錄編輯找到版本資訊')
+            # TODO: 找不到 SKCOM.dll 字串 (先前因為區分大小寫會發生)
+            pass
     except Exception as ex:
         # TODO: 忘了什麼時候會炸掉
         pass
