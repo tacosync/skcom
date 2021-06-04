@@ -5,8 +5,9 @@
 
 此套件僅相容 Windows 64 位元, 無法確保在其它環境正常運作, 驗證環境如下:
 
-* Windows 10 64位元, Anaconda 2019.03 Python 3.7 version
-* Windows 10 64位元, Python 3.8.2
+* Windows 10 x64, Python 3.7.9
+
+(由於 0.9.7 導入 asyncio, 0.9.7 與之後的版本無法相容 Python 3.6)
 
 **注意事項**
 
@@ -14,7 +15,17 @@
 * **在群益證券開戶, 並且開通 API 使用權限後才能使用**
 * **不支援期貨與選擇權, 如有這類需求可 fork 一份修改, 但不接受這類功能的 Pull Request**
 
-## 功能
+## Changelog
+
+0.9.7
+
+* 改用 asyncio 重新設計聽牌機, 改善多工效率與穩定性
+* Login 失敗後重新連線
+* EnterMonitor 失敗後重新連線
+* 修正股票名稱編碼問題
+* 修正 skcom.dll 版本無法從登錄檔取得問題
+* 安裝程式 skcom.dll 版本改用 2.13.29.0
+* 範例程式改用非同步處理
 
 0.9.6
 
