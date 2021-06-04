@@ -6,7 +6,7 @@ from operator import itemgetter
 import logging
 
 try:
-    from skcom.receiver import QuoteReceiver
+    from skcom.receiver import AsyncQuoteReceiver as QuoteReceiver
 except ImportError as ex:
     print('尚未生成 SKCOMLib.py 請先執行一次 python -m skcom.tools.setup')
     print('例外訊息:', ex)

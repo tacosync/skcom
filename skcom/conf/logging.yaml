@@ -38,7 +38,7 @@ handlers:
     class: busm.BusmHandler
 loggers:
   skcom:
-    level: DEBUG
+    level: INFO
     handlers:
       - main_log
       - console
