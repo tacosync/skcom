@@ -22,6 +22,7 @@ import requests
 from packaging import version
 from requests.exceptions import ConnectionError as RequestsConnectionError
 import yaml
+import base64
 import busm
 
 from skcom.crypto import decrypt_text
@@ -30,109 +31,99 @@ from skcom.exception import NetworkException
 from skcom.exception import InstallationException
 from skcom.exception import ConfigException
 
-def win_exec(cmd, admin_priv=False):
-    """
-    執行程式, 取得 stdout
-    """
-    # pylint: disable=too-many-locals, too-many-branches, too-many-statements
-    charset = 'cp950'
+def powershell_base64(script):
+    '''
+    Powershell Script 轉換為 Start-Process -EncodedCommand 參數
+    '''
+    return base64.b64encode(script.encode('utf-16le')).decode('ascii')
 
-    # ~ 自動轉換家目錄
-    path = os.path.expanduser(cmd[0])
-    cmd[0] = path
+def powershell_start(cmd, admin_priv=False):
+    '''
+    在 PowerShell 環境以 Start-Process 執行應用程式
+    '''
+    # 參數加一層引號, 避免空白字元分割
+    quoted_args = list(map(lambda a: '"%s"' % a if ' ' not in a else '"`"%s`""' % a, cmd[1:]))
 
-    if admin_priv:
-        # 產生隨機檔名, 用來儲存 stdout
-        existed = True
-        while existed:
-            fsn = random.randint(0, 65535)
-            stdout_path = os.path.expanduser(r'~\stdout-%04x.txt' % fsn)
-            stderr_path = os.path.expanduser(r'~\stderr-%04x.txt' % fsn)
-            existed = os.path.isfile(stdout_path) or os.path.isfile(stderr_path)
-        try:
-            open(stdout_path, 'w').close()
-            open(stderr_path, 'w').close()
-        except IOError:
-            raise ShellException(-1, '無法產生 stdout 暫存檔')
+    # 生成 stdout, stderr 暫存檔
+    existed = True
+    while existed:
+        fsn = random.randint(0, 65535)
+        stdout_path = os.path.expanduser(r'~\%04x-stdout.txt' % fsn)
+        stderr_path = os.path.expanduser(r'~\%04x-stderr.txt' % fsn)
+        exitcode_path = os.path.expanduser(r'~\%04x-exitcode.txt' % fsn)
+        existed = os.path.isfile(stdout_path) or os.path.isfile(stderr_path) or os.path.isfile(exitcode_path)
 
-        deep_args = pack_arglist(cmd[1:])
+    try:
+        open(stdout_path, 'w').close()
+        open(stderr_path, 'w').close()
+        open(exitcode_path, 'w').close()
+    except IOError:
+        raise ShellException(-1, '無法產生 stdout 暫存檔')
 
-        # 產生底層指令與表層參數
-        surface_args = [
-            'Start-Process',
-            '-FilePath', cmd[0],
-            '-ArgumentList', deep_args,
-            '-RedirectStandardOutput', stdout_path,
-            '-RedirectStandardError', stderr_path,
-            '-NoNewWindow'
-        ]
-
-        # 表層參數加上雙引號套入 ArgumentList
-        # TODO: 底層參數的雙引號逸脫
-        surface_args = ','.join(surface_args)
-
-        # 產生表層指令
-        cmd = [
-            'powershell.exe', 'Start-Process',
-            '-FilePath', 'powershell.exe',
-            '-ArgumentList', surface_args,
-            '-Verb', 'RunAs',
-            '-Wait'
-        ]
-
-        stdout = ''
-        skcom_ex = None
-        try:
-            # 取 stdout
-            comp = subprocess.run(cmd, check=True, capture_output=True)
-            with open(stdout_path, 'r') as stdout_file:
-                stdout = stdout_file.read()
-        except subprocess.CalledProcessError as ex:
-            # 執行失敗, stderr 先取表層再取底層
-            stderr = ex.stderr.decode(charset).strip()
-            if stderr == '':
-                with open(stderr_path, 'r') as stderr_file:
-                    stderr = stderr_file.read()
-            skcom_ex = ShellException(ex.returncode, stderr)
-        except Exception:
-            # 其他沒想到的狀況
-            message = 'Unexpected exception (%s): %s' % (type(ex).__name__, str(ex))
-            skcom_ex = ShellException(-1, message)
-        finally:
-            # 移除暫存檔
-            os.remove(stdout_path)
-            os.remove(stderr_path)
-            if skcom_ex is not None:
-                raise skcom_ex
+    # 組合 PowerShell 指令
+    # 注意!! -Verb 與下列參數不能並用
+    # * -NoNewWindow
+    # * -RedirectStandardOutput
+    # * -RedirectStandardError
+    cmd_sp = 'Start-Process "%s" ' % cmd[0]
+    if len(quoted_args) > 0:
+        cmd_sp += '-ArgumentList $arglist '
+    cmd_sp += '-RedirectStandardOutput "%s" ' % stdout_path
+    cmd_sp += '-RedirectStandardError "%s" ' % stderr_path
+    cmd_sp += '-Wait -NoNewWindow'
+    cmd_ex = 'Write-Output $LastExitCode > "%s"' % exitcode_path
+    if len(quoted_args) > 0:
+        cmd_arg = '$arglist = @(%s)' % ','.join(quoted_args)
+        ps_script = [cmd_arg, cmd_sp, cmd_ex]
     else:
-        # 如果要使用 PowerShell, 含有空白字元的參數需要加上雙引號, 避免字串解析錯誤
-        if cmd[0] == 'powershell.exe':
-            for i in range(1, len(cmd)):
-                if cmd[i].find(' ') >= 0:
-                    cmd[i] = '"{}"'.format(cmd[i])
+        ps_script = [cmd_sp, cmd_ex]
 
-        # 執行指令
-        # 如果 shell=False, 安裝 vcredist 的時候會無法提升權限而失敗
-        skcom_ex = None
-        try:
-            comp = subprocess.run(cmd, check=True, shell=True, capture_output=True)
-            stdout = comp.stdout.decode(charset)
-        except subprocess.CalledProcessError as ex:
-            # 執行過程發生錯誤
-            skcom_ex = ShellException(ex.returncode, ex.stderr.decode(charset))
-        except FileNotFoundError as ex:
-            # 沒有這個程式
-            message = 'No such executable (%s)' % cmd[0]
-            skcom_ex = ShellException(-1, message)
-        except Exception:
-            # 其他沒想到的狀況
-            message = 'Unexpected exception (%s): %s' % (type(ex).__name__, str(ex))
-            skcom_ex = ShellException(-1, message)
-        finally:
-            if skcom_ex is not None:
-                raise skcom_ex
+    # 指令以 unicode 編碼後轉換為 base64
+    base64_script = powershell_base64('\n'.join(ps_script))
 
-    return stdout
+    # 以管理員身分執行時, 需要多一層 powershell 啟動
+    if admin_priv:
+        base64_script = powershell_base64('Start-Process powershell -ArgumentList "-EncodedCommand %s" -Wait -Verb RunAs' % base64_script)
+
+    # TODO: 如果系統有安裝 Powershell 6+ 的版本, 優先使用新版 (pwsh.exe)
+    ps_command = 'powershell -EncodedCommand ' + base64_script
+
+    # TODO: 需要加強錯誤處理以及回傳值蒐集
+    try:
+        comp = subprocess.run(ps_command)
+    except Exception as ex:
+        print(ex)
+
+    # 讀取 stdout, stderr, exitcode
+    # 檔案開頭會多出一個 0xfeff 字元需要跳過
+    stdout = ''
+    stderr = ''
+    exitcode = ''
+    with open(stdout_path, 'r') as stdout_file:
+        stdout = stdout_file.read()
+    with open(stderr_path, 'r') as stderr_file:
+        stderr = stderr_file.read()
+    with open(exitcode_path, 'r', encoding='utf-16le') as exitcode_file:
+        exitcode = exitcode_file.read()[1:]
+
+    # 移除暫存檔
+    os.remove(stdout_path)
+    os.remove(stderr_path)
+    os.remove(exitcode_path)
+
+    # TODO: stdout 擷取
+    # * 實測 ping unknown, 錯誤時會輸出在 stdout 而不是在 stderr, 不論是否以管理員模式執行都是如此
+    # * 實測 tasklist /FI "IMAGENAME eq unknown.exe", 錯誤時會輸出在 stdout 而不是在 stderr, 不論是否以管理員模式執行都是如此
+    # TODO: stderr 擷取
+    # * 目前測不出實際作用
+    # TODO: 研究 $LastExitCode 用法
+    # * 實測發現自己執行 Write-Output $LastExitCode 有值, 腳本執行則沒有值, 所以暫時無法得到回傳值
+    # print('STDOUT:')
+    # print(stdout)
+    # print('STDERR:')
+    # print(stderr)
+    # print('RETURN:')
+    # print(exitcode)
 
 def pack_arglist(args):
     """
@@ -246,28 +237,19 @@ def install_vcredist():
     # pylint: disable=invalid-name
     DEBUG_MODE = False
 
-    # 下載與安裝 (安裝程式會自動切換系統管理員身分)
-    # https://www.microsoft.com/en-US/download/details.aspx?id=26999
-    if not DEBUG_MODE:
-        (width, _) = platform.architecture()
-        url = 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/'
-        if width == '32bit':
-            url += 'vcredist_x86.exe'
-        else:
-            url += 'vcredist_x64.exe'
-
-        # 如果下載失敗, 會觸發 NetworkException
-        vcexe = download_file(url, check_dir('~/.skcom'))
+    # 下載 (失敗會觸發 NetworkException)
+    (width, _) = platform.architecture()
+    url = 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/'
+    if width == '32bit':
+        url += 'vcredist_x86.exe'
     else:
-        if width == '32bit':
-            vcexe = '~/.skcom/vcredist_x86.exe'
-        else:
-            vcexe = '~/.skcom/vcredist_x64.exe'
+        url += 'vcredist_x64.exe'
+    vcexe = download_file(url, check_dir('~/.skcom'))
 
-
-    # 如果拒絕安裝, 會觸發 ShellException "(1) 存取被拒。"
+    # 安裝 (安裝程式會自動切換系統管理員身分)
+    # https://www.microsoft.com/en-US/download/details.aspx?id=26999
     cmd = [vcexe, 'setup', '/passive']
-    win_exec(cmd)
+    powershell_start(cmd, True)
 
     # 移除安裝包, 暫不處理檔案系統例外
     if not DEBUG_MODE:
@@ -297,7 +279,7 @@ def remove_vcredist():
     else:
         uuid = '/X{1D8E6291-B0D5-35EC-8441-6616F567A0F7}'
     cmd = ['msiexec.exe', uuid, '/passive']
-    win_exec(cmd)
+    powershell_start(cmd)
 
 def verof_skcom():
     """
@@ -355,7 +337,7 @@ def install_skcom(install_ver):
     # TODO: 使用者拒絕提供系統管理員權限時, 會觸發 ShellException,
     #       但是登錄檔依然能寫入成功, 原因需要再調查
     cmd = ['regsvr32', '/s', r'%s\SKCOM.dll' % com_path]
-    win_exec(cmd, admin_priv=True)
+    powershell_start(cmd, admin_priv=True)
 
     # 版本檢查
     expected_ver = version.parse(install_ver)
@@ -391,7 +373,7 @@ def remove_skcom():
     logger.info('  路徑: %s', com_path)
     logger.info('  解除註冊: %s', com_file)
     cmd = ['regsvr32', '/s', '/u', com_file]
-    win_exec(cmd, admin_priv=True)
+    powershell_start(cmd, admin_priv=True)
 
     logger.info('  移除元件目錄')
     shutil.rmtree(com_path)
