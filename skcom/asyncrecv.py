@@ -201,7 +201,7 @@ class AsyncQuoteReceiver():
         # 啟動監聽器的作業細節
         def target():
             self.change_state(ReceiverState.MONITOR)
-            n_code = self.skq.SKQuoteLib_EnterMonitor()
+            n_code = self.skq.SKQuoteLib_EnterMonitorLONG()
             if n_code != 0:
                 self.change_state(ReceiverState.MONITOR_FAILED)
                 self.monitor_event.set()
@@ -210,7 +210,7 @@ class AsyncQuoteReceiver():
                     await self.retry()
                 asyncio.run(do_retry())
                 return
-            logger.debug('connect(): SKQuoteLib_EnterMonitor() done')
+            logger.debug('connect(): SKQuoteLib_EnterMonitorLONG() done')
 
         # 登入失敗或 Ctrl+C, 放棄監聽作業
         if self.state in [ReceiverState.RETRY, ReceiverState.STOP]:
@@ -334,7 +334,7 @@ class AsyncQuoteReceiver():
                         logger.warning('%s 日 K 快取載入失敗: 不是有效的 JSON 格式', stock_no)
                     except UnicodeDecodeError:
                         logger.warning('%s 日 K 快取載入失敗: 不是 UTF-8 編碼', stock_no)
-            (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByNo(stock_no)
+            (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByNoLONG(stock_no)
             if n_code != 0:
                 self.handle_sk_error('GetStockByNo()', n_code)
                 return
@@ -484,7 +484,7 @@ class AsyncQuoteReceiver():
         if nCode != 0:
             self.retry()
 
-    def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
+    def OnNotifyTicksLONG(self, sMarketNo, sStockidx, nPtr, \
                       nDate, nTimehms, nTimemillis, \
                       nBid, nAsk, nClose, nQty, nSimulate):
         """ 接收即時撮合 4-4-d (p.109) """
@@ -504,7 +504,7 @@ class AsyncQuoteReceiver():
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
         # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
-        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, sStockidx)
         if n_code != 0:
             self.handle_sk_error('GetStockByIndex()', n_code)
             return
@@ -536,7 +536,7 @@ class AsyncQuoteReceiver():
             self.ticks_total[p_stock.bstrStockNo]
         )
 
-    def OnNotifyKLineData(self, bstrStockNo, bstrData):
+    def OnNotifyKLineDataLONG(self, bstrStockNo, bstrData):
         """ 接收 K 線資料 (文件 4-4-f p.112) """
         # pylint: disable=invalid-name
         # pylint: enable=invalid-name
