@@ -1,5 +1,5 @@
 ---
-name: 錯誤回報
+name: Bug report
 about: 請用這個範本回報 skcom 套件的 Bug
 title: ''
 labels: bug
