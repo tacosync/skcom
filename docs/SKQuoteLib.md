@@ -58,3 +58,35 @@ SKQuoteLib_Vega |
 
 ## 事件清單
 
+控制
+
+名稱 | 用途
+---- | ----
+OnConnection |
+
+重點訂閱資訊
+
+名稱 | 用途
+---- | ----
+OnNotifyQuoteLONG |
+OnNotifyHistoryTicksLONG |
+OnNotifyTicksLONG |
+OnNotifyTicksBest5LONG |
+OnNotifyKLineData |
+
+其他訂閱資訊
+
+名稱 | 用途
+---- | ----
+OnNotifyCommodityListData |
+OnNotifyMarketBuySell |
+OnNotifyMarketHighLow |
+OnNotifyMarketHighLowWarrant |
+OnNotifyMarketTot |
+OnNotifyOddLotSpreadDeal |
+OnNotifyServerTime |
+OnNotifyStockListData |
+OnNotifyStrikePrices |
+OnNotifyTicksBoolTunnelLONG |
+OnNotifyTicksFutureTradeLONG |
+OnNotifyTicksMACDLONG |
