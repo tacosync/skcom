@@ -66,20 +66,14 @@ SKQuoteLib_Vega |
 
 ## 事件清單
 
-控制
-
-名稱 | 用途
----- | ----
-OnConnection |
-
 重點訂閱資訊
 
 名稱 | 對應訂閱方法 | 用途
 ---- | ---- | ----
-OnNotifyQuoteLONG | 不確定 | 報價更新通知
-OnNotifyHistoryTicksLONG | OnNotifyHistoryTicks (即將下線) | 回補 Ticks
-OnNotifyTicksLONG | SKQuoteLib_RequestTicks | 即時 Ticks
-OnNotifyTicksBest5LONG | SKQuoteLib_RequestTicks | 即時五檔
+**OnNotifyQuoteLONG** | 不確定 | 報價更新通知
+**OnNotifyHistoryTicksLONG** | OnNotifyHistoryTicks (即將下線) | 回補 Ticks
+**OnNotifyTicksLONG** | SKQuoteLib_RequestTicks | 即時 Ticks
+**OnNotifyTicksBest5LONG** | SKQuoteLib_RequestTicks | 即時五檔
 OnNotifyKLineData | SKQuoteLib_RequestKLine<br>SKQuoteLib_RequestKLineAM<br>SKQuoteLib_RequestKLineAMByDate | K 線資料
 
 其他訂閱資訊
@@ -98,6 +92,12 @@ OnNotifyStrikePrices |
 OnNotifyTicksBoolTunnelLONG |
 OnNotifyTicksFutureTradeLONG |
 OnNotifyTicksMACDLONG |
+
+控制
+
+名稱 | 用途
+---- | ----
+OnConnection |
 
 ## 注意事項
 
