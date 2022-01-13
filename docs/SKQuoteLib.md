@@ -16,21 +16,21 @@ SKQuoteLib_IsConnected |
 
 名稱 | 用途
 ---- | ----
-SKQuoteLib_RequestBoolTunnel |
-SKQuoteLib_RequestFutureTradeInfo |
-SKQuoteLib_RequestKLine |
-SKQuoteLib_RequestKLineAM |
-SKQuoteLib_RequestKLineAMByDate |
-SKQuoteLib_RequestLiveTick |
-SKQuoteLib_RequestMACD |
-SKQuoteLib_RequestServerTime |
-SKQuoteLib_RequestStockList |
-SKQuoteLib_RequestStocks |
-SKQuoteLib_RequestStocksByMarketNo |
-SKQuoteLib_RequestTicks |
-SKQuoteLib_RequestTicksWithMarketNo |
-SKQuoteLib_CancelRequestStocks |
-SKQuoteLib_CancelRequestTicks |
+SKQuoteLib_RequestBoolTunnel | 訂閱布林通道
+SKQuoteLib_RequestFutureTradeInfo | 訂閱期貨商品資訊
+SKQuoteLib_RequestKLine | K 線查詢
+SKQuoteLib_RequestKLineAM | 新 K 線查詢
+SKQuoteLib_RequestKLineAMByDate | 指定區間 K 線查詢
+SKQuoteLib_RequestLiveTick | 訂閱即時成交明細
+SKQuoteLib_RequestMACD | 訂閱 MACD
+SKQuoteLib_RequestServerTime | 主機時間查詢
+SKQuoteLib_RequestStockList | 國內商品清單查詢
+SKQuoteLib_RequestStocks | 訂閱報價
+SKQuoteLib_RequestStocksByMarketNo | 
+SKQuoteLib_RequestTicks | 訂閱 Ticks 及五檔
+SKQuoteLib_RequestTicksWithMarketNo | 取得行情報價
+SKQuoteLib_CancelRequestStocks | 取消訂閱報價
+SKQuoteLib_CancelRequestTicks | 取消訂閱 Ticks 及五檔
 
 資訊取得
 
@@ -46,7 +46,7 @@ SKQuoteLib_GetStockBtNoLONG |
 SKQuoteLib_GetStrikePrices |
 SKQuoteLib_GetTickLONG |
 
-其他
+風險參數
 
 名稱 | 用途
 ---- | ----
@@ -66,13 +66,13 @@ OnConnection |
 
 重點訂閱資訊
 
-名稱 | 用途
+名稱 | 對應訂閱方法 | 用途
 ---- | ----
-OnNotifyQuoteLONG |
-OnNotifyHistoryTicksLONG |
-OnNotifyTicksLONG |
-OnNotifyTicksBest5LONG |
-OnNotifyKLineData |
+OnNotifyQuoteLONG | 不確定 | 報價更新通知
+OnNotifyHistoryTicksLONG | OnNotifyHistoryTicks (即將下線) | 回補 Ticks
+OnNotifyTicksLONG | SKQuoteLib_RequestTicks | 即時 Ticks
+OnNotifyTicksBest5LONG | SKQuoteLib_RequestTicks | 即時五檔
+OnNotifyKLineData | SKQuoteLib_RequestKLine, SKQuoteLib_RequestKLineAM, SKQuoteLib_RequestKLineAMByDate | K 線資料
 
 其他訂閱資訊
 
