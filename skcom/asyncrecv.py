@@ -9,7 +9,6 @@ import logging
 import math
 import os
 import os.path
-import re
 import signal
 import sys
 import threading
@@ -336,8 +335,11 @@ class AsyncQuoteReceiver():
                         logger.warning('%s 日 K 快取載入失敗: 不是 UTF-8 編碼', stock_no)
             (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByNoLONG(stock_no)
             if n_code != 0:
-                self.handle_sk_error('GetStockByNo()', n_code)
-                return
+                if n_code == 9999:
+                    logger.warning('商品 %s 資料無法取得, 請確認是否已下市', stock_no)
+                else:
+                    self.handle_sk_error('GetStockByNoLONG()', n_code)
+                continue
             self.daily_kline[p_stock.bstrStockNo] = {
                 'id': p_stock.bstrStockNo,
                 'name': fix_encoding(p_stock.bstrStockName),
@@ -347,6 +349,10 @@ class AsyncQuoteReceiver():
 
         # 請求日 K
         for stock_no in self.config['products']:
+            # 股票資訊載入失敗的項目就跳過
+            # 可以用下市產品模擬這段, 如: 00677U
+            if stock_no not in self.daily_kline:
+                continue
             # 參考文件: 4-4-9 (p.99), 4-4-21 (p.105)
             # 1. 使用方式與文件相符
             # 2. 台股日 K 使用全盤與 AM 盤效果相同
@@ -358,10 +364,12 @@ class AsyncQuoteReceiver():
             if os.path.isfile(cache_filename):
                 continue
             logger.info('請求 %s 的日 K 資料', stock_no)
+            # TODO: 改用 SKQuoteLib_RequestKLineAMByDate
             n_code = self.skq.SKQuoteLib_RequestKLine(stock_no, 4, 1)
             # n_code = self.skq.SKQuoteLib_RequestKLineAM(stock_no, 4, 1, 1)
             if n_code != 0:
                 self.handle_sk_error('RequestKLine()', n_code)
+                continue
         logger.info('日 K 請求完成')
 
     async def handle_kline(self):
@@ -536,7 +544,60 @@ class AsyncQuoteReceiver():
             self.ticks_total[p_stock.bstrStockNo]
         )
 
-    def OnNotifyKLineDataLONG(self, bstrStockNo, bstrData):
+    def OnNotifyHistoryTicksLONG(self, sMarketNo, sStockidx, nPtr, \
+                      nDate, nTimehms, nTimemillis, \
+                      nBid, nAsk, nClose, nQty, nSimulate):
+        """ 接收 Ticks 回補資料 """
+        """ 接收即時撮合 4-4-d (p.109) """
+        # pylint: disable=invalid-name, unused-argument, too-many-arguments
+        # pylint: enable=invalid-name
+        # pylint: disable=too-many-locals
+
+        # 忽略試撮回報
+        # 盤中最後一筆與零股交易, 即使收盤也不會觸發歷史 Ticks, 這兩筆會在這裡觸發
+        # [2330 台積電] 時間:13:24:59.463 買:238.00 賣:238.50 成:238.50 單量:43 總量:31348
+        # [2330 台積電] 時間:13:30:00.000 買:238.00 賣:238.50 成:238.00 單量:3221 總量:34569
+        # [2330 台積電] 時間:14:30:00.000 買:0.00 賣:0.00 成:238.00 單量:18 總量:34587
+        if nTimehms < 90000 or (132500 <= nTimehms < 133000):
+            return
+
+        # 參考文件: 4-4-4 (p.96)
+        # 1. pSKStock 參數可忽略
+        # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
+        # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, sStockidx)
+        if n_code != 0:
+            self.handle_sk_error('GetStockByIndex()', n_code)
+            return
+
+        # 累加總量
+        if p_stock.bstrStockNo not in self.ticks_total:
+            self.ticks_total[p_stock.bstrStockNo] = nQty
+        else:
+            self.ticks_total[p_stock.bstrStockNo] += nQty
+
+        # 時間字串化
+        ssdec = nTimehms % 100
+        nTimehms /= 100
+        mmdec = nTimehms % 100
+        nTimehms /= 100
+        hhdec = nTimehms
+        timestr = '%02d:%02d:%02d.%03d' % (hhdec, mmdec, ssdec, nTimemillis//1000)
+
+        # 格式轉換
+        ppow = math.pow(10, p_stock.sDecimal)
+        self.handle_ticks(
+            p_stock.bstrStockNo,
+            fix_encoding(p_stock.bstrStockName),
+            timestr,
+            nBid / ppow,
+            nAsk / ppow,
+            nClose / ppow,
+            nQty,
+            self.ticks_total[p_stock.bstrStockNo]
+        )
+
+    def OnNotifyKLineData(self, bstrStockNo, bstrData):
         """ 接收 K 線資料 (文件 4-4-f p.112) """
         # pylint: disable=invalid-name
         # pylint: enable=invalid-name
@@ -547,7 +608,7 @@ class AsyncQuoteReceiver():
         cols = bstrData.split(', ')
         this_date = cols[0].replace('/', '-')
         self.kline_last_mtime = time.time()
-        # self.logger.info('%s %.5f' % (this_date, self.kline_last_mtime))
+        # logger.info('%s %.5f' % (this_date, self.kline_last_mtime))
 
         if self.daily_kline[bstrStockNo] is not None:
             # 寫入緩衝區與交易日數限制處理
@@ -561,3 +622,7 @@ class AsyncQuoteReceiver():
             }
             buffer = self.daily_kline[bstrStockNo]['quotes']
             buffer.append(quote)
+
+    def OnNotifyTicksBest5LONG(self):
+        """ 接收最佳五檔資料 (盤後疑似無效) """
+        logger.info('OnNotifyTicksBest5LONG()')
