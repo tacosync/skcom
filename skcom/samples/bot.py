@@ -139,7 +139,7 @@ class StockBot(QuoteReceiver):
         # 均線算式 (取收盤, 算總和, 算平均)
         fclose = lambda q: q['close']
         fsum   = lambda c1, c2: c1 + c2
-        favg   = lambda quotes, n: reduce(fsum, map(fclose, quotes[0:n])) / n
+        favg   = lambda quotes, n: reduce(fsum, map(fclose, quotes[0:n]), 0) / n
 
         # 計算各條均線當日位置
         quotes = kline['quotes']
@@ -164,7 +164,7 @@ class StockBot(QuoteReceiver):
         # 取月均量與最大量, 作為出量參考值
         # TODO: 取 60, 20 均量 & 20 最大量, 做成量能階梯
         fvol  = lambda q: q['volume']
-        fvavg = lambda quotes, n: reduce(fsum, map(fvol, quotes[0:n])) / n
+        fvavg = lambda quotes, n: reduce(fsum, map(fvol, quotes[0:n]), 0) / n
         fvmax = lambda quotes, n: max(map(fvol, quotes[0:n]))
         avg60 = fvavg(quotes, 60)
         avg20 = fvavg(quotes, 20)
