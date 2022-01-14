@@ -495,7 +495,7 @@ class AsyncQuoteReceiver():
         if nCode != 0:
             self.retry()
 
-    def OnNotifyTicksLONG(self, sMarketNo, sStockidx, nPtr, \
+    def OnNotifyTicksLONG(self, sMarketNo, nStockIndex, nPtr, \
                       nDate, nTimehms, nTimemillis, \
                       nBid, nAsk, nClose, nQty, nSimulate):
         """ 接收即時撮合 4-4-d (p.109) """
@@ -516,9 +516,9 @@ class AsyncQuoteReceiver():
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
         # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
-        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, sStockidx)
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, nStockIndex)
         if n_code != 0:
-            self.handle_sk_error('GetStockByIndex()', n_code)
+            self.handle_sk_error('GetStockByIndexLONG()', n_code)
             return
 
         # 累加總量
@@ -548,7 +548,7 @@ class AsyncQuoteReceiver():
             self.ticks_total[p_stock.bstrStockNo]
         )
 
-    def OnNotifyHistoryTicksLONG(self, sMarketNo, sStockidx, nPtr, \
+    def OnNotifyHistoryTicksLONG(self, sMarketNo, nStockIndex, nPtr, \
                       nDate, nTimehms, nTimemillis, \
                       nBid, nAsk, nClose, nQty, nSimulate):
         """ 接收 Ticks 回補資料 """
@@ -570,9 +570,9 @@ class AsyncQuoteReceiver():
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
         # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
-        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, sStockidx)
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, nStockIndex)
         if n_code != 0:
-            self.handle_sk_error('GetStockByIndex()', n_code)
+            self.handle_sk_error('GetStockByIndexLONG()', n_code)
             return
 
         # 累加總量
@@ -628,7 +628,7 @@ class AsyncQuoteReceiver():
             buffer = self.daily_kline[bstrStockNo]['quotes']
             buffer.append(quote)
 
-    def OnNotifyBest5LONG(self, sMarketNo, nStockidx, \
+    def OnNotifyBest5LONG(self, sMarketNo, nStockIndex, \
             nBestBid1, nBestBidQty1, \
             nBestBid2, nBestBidQty2, \
             nBestBid3, nBestBidQty3, \
@@ -649,7 +649,7 @@ class AsyncQuoteReceiver():
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
         # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
-        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, nStockidx)
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, nStockIndex)
         if n_code != 0:
             self.handle_sk_error('GetStockByIndex()', n_code)
             return
@@ -658,19 +658,20 @@ class AsyncQuoteReceiver():
             'id': p_stock.bstrStockNo,
             'name': fix_encoding(p_stock.bstrStockName),
             'best': [
-                { 'bid': nExtendBid, 'bidQty': nExtendBidQty, 'ask': nExtendAsk, 'askQty': nExtendAskQty },
                 { 'bid': nBestBid1, 'bidQty': nBestBidQty1, 'ask': nBestAsk1, 'askQty': nBestAskQty1 },
                 { 'bid': nBestBid2, 'bidQty': nBestBidQty2, 'ask': nBestAsk2, 'askQty': nBestAskQty2 },
                 { 'bid': nBestBid3, 'bidQty': nBestBidQty3, 'ask': nBestAsk3, 'askQty': nBestAskQty3 },
                 { 'bid': nBestBid4, 'bidQty': nBestBidQty4, 'ask': nBestAsk4, 'askQty': nBestAskQty4 },
                 { 'bid': nBestBid5, 'bidQty': nBestBidQty5, 'ask': nBestAsk5, 'askQty': nBestAskQty5 },
+                # 這條用途不明, 暫不使用
+                # { 'bid': nExtendBid, 'bidQty': nExtendBidQty, 'ask': nExtendAsk, 'askQty': nExtendAskQty },
             ]
         }
         if self.best5_hook is not None:
             self.best5_hook(best5_data)
 
         logger.info('%s %s 最佳五檔', best5_data['id'], best5_data['name'])
-        for i in range(0, 6):
+        for i in range(0, 5):
             logger.info(
                 '%d %s(%s) | %s(%s)', i,
                 best5_data['best'][i]['bid'],
