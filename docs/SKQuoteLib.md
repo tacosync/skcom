@@ -13,7 +13,7 @@
 ---- | ----
 SKQuoteLib_RequestKLineAMByDate | 指定區間 K 線查詢
 SKQuoteLib_RequestStocks | 訂閱報價
-SKQuoteLib_RequestTicks | 訂閱 Ticks 及五檔
+SKQuoteLib_RequestTicks | 訂閱 Ticks, 回補, 五檔
 SKQuoteLib_CancelRequestStocks | 取消訂閱報價
 SKQuoteLib_CancelRequestTicks | 取消訂閱 Ticks 及五檔
 
@@ -25,7 +25,7 @@ SKQuoteLib_RequestBoolTunnel | 訂閱布林通道
 SKQuoteLib_RequestFutureTradeInfo | 訂閱期貨商品資訊
 SKQuoteLib_RequestKLine | K 線查詢
 SKQuoteLib_RequestKLineAM | 新 K 線查詢
-SKQuoteLib_RequestLiveTick | 訂閱即時成交明細
+SKQuoteLib_RequestLiveTick | 訂閱即時成交明細 (僅 Ticks)
 SKQuoteLib_RequestMACD | 訂閱 MACD
 SKQuoteLib_RequestServerTime | 主機時間查詢
 SKQuoteLib_RequestStockList | 國內商品清單查詢
@@ -73,7 +73,7 @@ SKQuoteLib_Vega |
 **OnNotifyQuoteLONG** | 不確定 | 報價更新通知
 **OnNotifyHistoryTicksLONG** | OnNotifyHistoryTicks (即將下線) | 回補 Ticks
 **OnNotifyTicksLONG** | SKQuoteLib_RequestTicks | 即時 Ticks
-**OnNotifyTicksBest5LONG** | SKQuoteLib_RequestTicks | 即時五檔
+**OnNotifyBest5LONG** | SKQuoteLib_RequestTicks | 即時五檔
 OnNotifyKLineData | SKQuoteLib_RequestKLine<br>SKQuoteLib_RequestKLineAM<br>SKQuoteLib_RequestKLineAMByDate | K 線資料
 
 其他訂閱資訊
