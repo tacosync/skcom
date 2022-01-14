@@ -5,7 +5,7 @@
 
 此套件僅相容 Windows 64 位元, 無法確保在其它環境正常運作, 驗證環境如下:
 
-* Windows 10 x64, Python 3.7.9
+* Windows 10 x64, Python 3.8.10
 
 (由於 0.9.7 導入 asyncio, 0.9.7 與之後的版本無法相容 Python 3.6)
 

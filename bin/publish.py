@@ -123,7 +123,7 @@ def wheel_check():
     """ 檢查 wheel 是否能正常運作在各個 Python 版本環境上 """
 
     print('檢查程式碼品質')
-    ret = os.system('python -m pylint -f colorized busm')
+    ret = os.system('python -m pylint -f colorized skcom')
     if ret != 0:
         print('檢查沒通過，停止封裝')
         exit(ret)
