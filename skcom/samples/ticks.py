@@ -26,13 +26,28 @@ def on_receive_ticks_entry(ticks_entry):
         )
     )
 
+def on_receive_best5(best5_entry):
+    """
+    處理最佳五檔事件
+    """
+    print('[%s %s] 最佳五檔' % (best5_entry['id'], best5_entry['name']))
+    for i in range(0, 5):
+        print('%5d %.2f | %.2f %5d' % (
+            best5_entry['best'][i]['bidQty'],
+            best5_entry['best'][i]['bid'],
+            best5_entry['best'][i]['ask'],
+            best5_entry['best'][i]['askQty'],
+        ))
+
 def main():
     """
     main()
     """
+    # 改為 False 可以關閉當日回補效果
+    include_history = True
     qrcv = QuoteReceiver()
-    # 第二個參數表示是否回補當日已過時的撮合事件
-    qrcv.set_ticks_hook(on_receive_ticks_entry, True)
+    qrcv.set_ticks_hook(on_receive_ticks_entry, include_history)
+    qrcv.set_best5_hook(on_receive_best5)
     qrcv.start()
 
 if __name__ == '__main__':
