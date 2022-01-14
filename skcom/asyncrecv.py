@@ -9,7 +9,6 @@ import logging
 import math
 import os
 import os.path
-import re
 import signal
 import sys
 import threading
@@ -96,6 +95,9 @@ class AsyncQuoteReceiver():
         self.end_date = ''
         self.kline_days_limit = 20
         self.kline_last_mtime = 0
+
+        # 最佳五檔處理用屬性
+        self.best5_hook = None
 
         # 產生 log 目錄
         if not os.path.isdir(self.log_path):
@@ -201,7 +203,7 @@ class AsyncQuoteReceiver():
         # 啟動監聽器的作業細節
         def target():
             self.change_state(ReceiverState.MONITOR)
-            n_code = self.skq.SKQuoteLib_EnterMonitor()
+            n_code = self.skq.SKQuoteLib_EnterMonitorLONG()
             if n_code != 0:
                 self.change_state(ReceiverState.MONITOR_FAILED)
                 self.monitor_event.set()
@@ -210,7 +212,7 @@ class AsyncQuoteReceiver():
                     await self.retry()
                 asyncio.run(do_retry())
                 return
-            logger.debug('connect(): SKQuoteLib_EnterMonitor() done')
+            logger.debug('connect(): SKQuoteLib_EnterMonitorLONG() done')
 
         # 登入失敗或 Ctrl+C, 放棄監聽作業
         if self.state in [ReceiverState.RETRY, ReceiverState.STOP]:
@@ -334,10 +336,13 @@ class AsyncQuoteReceiver():
                         logger.warning('%s 日 K 快取載入失敗: 不是有效的 JSON 格式', stock_no)
                     except UnicodeDecodeError:
                         logger.warning('%s 日 K 快取載入失敗: 不是 UTF-8 編碼', stock_no)
-            (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByNo(stock_no)
+            (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByNoLONG(stock_no)
             if n_code != 0:
-                self.handle_sk_error('GetStockByNo()', n_code)
-                return
+                if n_code == 9999:
+                    logger.warning('商品 %s 資料無法取得, 請確認是否已下市', stock_no)
+                else:
+                    self.handle_sk_error('GetStockByNoLONG()', n_code)
+                continue
             self.daily_kline[p_stock.bstrStockNo] = {
                 'id': p_stock.bstrStockNo,
                 'name': fix_encoding(p_stock.bstrStockName),
@@ -347,6 +352,10 @@ class AsyncQuoteReceiver():
 
         # 請求日 K
         for stock_no in self.config['products']:
+            # 股票資訊載入失敗的項目就跳過
+            # 可以用下市產品模擬這段, 如: 00677U
+            if stock_no not in self.daily_kline:
+                continue
             # 參考文件: 4-4-9 (p.99), 4-4-21 (p.105)
             # 1. 使用方式與文件相符
             # 2. 台股日 K 使用全盤與 AM 盤效果相同
@@ -358,10 +367,12 @@ class AsyncQuoteReceiver():
             if os.path.isfile(cache_filename):
                 continue
             logger.info('請求 %s 的日 K 資料', stock_no)
+            # TODO: 改用 SKQuoteLib_RequestKLineAMByDate
             n_code = self.skq.SKQuoteLib_RequestKLine(stock_no, 4, 1)
             # n_code = self.skq.SKQuoteLib_RequestKLineAM(stock_no, 4, 1, 1)
             if n_code != 0:
                 self.handle_sk_error('RequestKLine()', n_code)
+                continue
         logger.info('日 K 請求完成')
 
     async def handle_kline(self):
@@ -484,10 +495,11 @@ class AsyncQuoteReceiver():
         if nCode != 0:
             self.retry()
 
-    def OnNotifyTicks(self, sMarketNo, sStockidx, nPtr, \
+    def OnNotifyTicksLONG(self, sMarketNo, nStockIndex, nPtr, \
                       nDate, nTimehms, nTimemillis, \
                       nBid, nAsk, nClose, nQty, nSimulate):
         """ 接收即時撮合 4-4-d (p.109) """
+        logger.info('OnNotifyTicksLONG()')
         # pylint: disable=invalid-name, unused-argument, too-many-arguments
         # pylint: enable=invalid-name
         # pylint: disable=too-many-locals
@@ -504,9 +516,63 @@ class AsyncQuoteReceiver():
         # 1. pSKStock 參數可忽略
         # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
         # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
-        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndex(sMarketNo, sStockidx)
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, nStockIndex)
         if n_code != 0:
-            self.handle_sk_error('GetStockByIndex()', n_code)
+            self.handle_sk_error('GetStockByIndexLONG()', n_code)
+            return
+
+        # 累加總量
+        if p_stock.bstrStockNo not in self.ticks_total:
+            self.ticks_total[p_stock.bstrStockNo] = nQty
+        else:
+            self.ticks_total[p_stock.bstrStockNo] += nQty
+
+        # 時間字串化
+        ssdec = nTimehms % 100
+        nTimehms /= 100
+        mmdec = nTimehms % 100
+        nTimehms /= 100
+        hhdec = nTimehms
+        timestr = '%02d:%02d:%02d.%03d' % (hhdec, mmdec, ssdec, nTimemillis//1000)
+
+        # 格式轉換
+        ppow = math.pow(10, p_stock.sDecimal)
+        self.handle_ticks(
+            p_stock.bstrStockNo,
+            fix_encoding(p_stock.bstrStockName),
+            timestr,
+            nBid / ppow,
+            nAsk / ppow,
+            nClose / ppow,
+            nQty,
+            self.ticks_total[p_stock.bstrStockNo]
+        )
+
+    def OnNotifyHistoryTicksLONG(self, sMarketNo, nStockIndex, nPtr, \
+                      nDate, nTimehms, nTimemillis, \
+                      nBid, nAsk, nClose, nQty, nSimulate):
+        """ 接收 Ticks 回補資料 """
+        """ 接收即時撮合 4-4-d (p.109) """
+        # logger.info('OnNotifyHistoryTicksLONG()')
+        # pylint: disable=invalid-name, unused-argument, too-many-arguments
+        # pylint: enable=invalid-name
+        # pylint: disable=too-many-locals
+
+        # 忽略試撮回報
+        # 盤中最後一筆與零股交易, 即使收盤也不會觸發歷史 Ticks, 這兩筆會在這裡觸發
+        # [2330 台積電] 時間:13:24:59.463 買:238.00 賣:238.50 成:238.50 單量:43 總量:31348
+        # [2330 台積電] 時間:13:30:00.000 買:238.00 賣:238.50 成:238.00 單量:3221 總量:34569
+        # [2330 台積電] 時間:14:30:00.000 買:0.00 賣:0.00 成:238.00 單量:18 總量:34587
+        if nTimehms < 90000 or (132500 <= nTimehms < 133000):
+            return
+
+        # 參考文件: 4-4-4 (p.96)
+        # 1. pSKStock 參數可忽略
+        # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
+        # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, nStockIndex)
+        if n_code != 0:
+            self.handle_sk_error('GetStockByIndexLONG()', n_code)
             return
 
         # 累加總量
@@ -547,7 +613,7 @@ class AsyncQuoteReceiver():
         cols = bstrData.split(', ')
         this_date = cols[0].replace('/', '-')
         self.kline_last_mtime = time.time()
-        # self.logger.info('%s %.5f' % (this_date, self.kline_last_mtime))
+        # logger.info('%s %.5f' % (this_date, self.kline_last_mtime))
 
         if self.daily_kline[bstrStockNo] is not None:
             # 寫入緩衝區與交易日數限制處理
@@ -561,3 +627,55 @@ class AsyncQuoteReceiver():
             }
             buffer = self.daily_kline[bstrStockNo]['quotes']
             buffer.append(quote)
+
+    def OnNotifyBest5LONG(self, sMarketNo, nStockIndex, \
+            nBestBid1, nBestBidQty1, \
+            nBestBid2, nBestBidQty2, \
+            nBestBid3, nBestBidQty3, \
+            nBestBid4, nBestBidQty4, \
+            nBestBid5, nBestBidQty5, \
+            nExtendBid, nExtendBidQty, \
+            nBestAsk1, nBestAskQty1, \
+            nBestAsk2, nBestAskQty2, \
+            nBestAsk3, nBestAskQty3, \
+            nBestAsk4, nBestAskQty4, \
+            nBestAsk5, nBestAskQty5, \
+            nExtendAsk, nExtendAskQty, \
+            nSimulate):
+        """ 接收最佳五檔資料 (盤後疑似無效) """
+        logger.info('OnNotifyBest5LONG()')
+
+        # 參考文件: 4-4-4 (p.96)
+        # 1. pSKStock 參數可忽略
+        # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
+        # 3. 如果沒有 RequestStocks(), 這裡得到的總量 pStock.nTQty 恆為 0
+        (p_stock, n_code) = self.skq.SKQuoteLib_GetStockByIndexLONG(sMarketNo, nStockIndex)
+        if n_code != 0:
+            self.handle_sk_error('GetStockByIndex()', n_code)
+            return
+
+        best5_data = {
+            'id': p_stock.bstrStockNo,
+            'name': fix_encoding(p_stock.bstrStockName),
+            'best': [
+                { 'bid': nBestBid1, 'bidQty': nBestBidQty1, 'ask': nBestAsk1, 'askQty': nBestAskQty1 },
+                { 'bid': nBestBid2, 'bidQty': nBestBidQty2, 'ask': nBestAsk2, 'askQty': nBestAskQty2 },
+                { 'bid': nBestBid3, 'bidQty': nBestBidQty3, 'ask': nBestAsk3, 'askQty': nBestAskQty3 },
+                { 'bid': nBestBid4, 'bidQty': nBestBidQty4, 'ask': nBestAsk4, 'askQty': nBestAskQty4 },
+                { 'bid': nBestBid5, 'bidQty': nBestBidQty5, 'ask': nBestAsk5, 'askQty': nBestAskQty5 },
+                # 這條用途不明, 暫不使用
+                # { 'bid': nExtendBid, 'bidQty': nExtendBidQty, 'ask': nExtendAsk, 'askQty': nExtendAskQty },
+            ]
+        }
+        if self.best5_hook is not None:
+            self.best5_hook(best5_data)
+
+        logger.info('%s %s 最佳五檔', best5_data['id'], best5_data['name'])
+        for i in range(0, 5):
+            logger.info(
+                '%d %s(%s) | %s(%s)', i,
+                best5_data['best'][i]['bid'],
+                best5_data['best'][i]['bidQty'],
+                best5_data['best'][i]['ask'],
+                best5_data['best'][i]['askQty'],
+            )
