@@ -13,6 +13,7 @@ import signal
 import sys
 import threading
 import time
+import types
 from datetime import datetime, timedelta
 
 import pythoncom
@@ -416,7 +417,8 @@ class AsyncQuoteReceiver():
                 # pylint: disable=line-too-long
                 self.daily_kline[stock_id]['quotes'] = self.daily_kline[stock_id]['quotes'][0:self.kline_days_limit]
                 if self.kline_hook is not None:
-                    self.kline_hook(self.daily_kline[stock_id])
+                    retv = self.kline_hook(self.daily_kline[stock_id])
+                    self.await_coroutine(retv)
                 else:
                     logger.info('    日 K: %s 已接收', stock_id)
 
@@ -437,7 +439,8 @@ class AsyncQuoteReceiver():
             'vol': vol
         }
         if self.ticks_hook is not None:
-            self.ticks_hook(entry)
+            retv = self.ticks_hook(entry)
+            self.await_coroutine(retv)
         else:
             logger.info(
                 '    成交: %6s %s %.2f - %s',
@@ -451,6 +454,12 @@ class AsyncQuoteReceiver():
         """ 顯示錯誤訊息 """
         skmsg = self.skc.SKCenterLib_GetReturnCodeMessage(n_code)
         logger.info('執行動作 [%s] 時發生錯誤, 詳細原因: #%d %s', action, n_code, skmsg)
+
+    def await_coroutine(self, retv):
+        """ 如果 function 回傳值是 coroutine, 放進 event loop """
+        if isinstance(retv, types.CoroutineType):
+            loop = asyncio.get_running_loop()
+            loop.create_task(retv)
 
     def OnReplyMessage(self, bstrUserID, bstrMessage):
         """ 處理登入時的公告訊息 4-3-e (p.167) """
@@ -630,4 +639,5 @@ class AsyncQuoteReceiver():
             ]
         }
         if self.best5_hook is not None:
-            self.best5_hook(best5_entry)
+            retv = self.best5_hook(best5_entry)
+            self.await_coroutine(retv)

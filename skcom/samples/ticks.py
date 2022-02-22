@@ -2,6 +2,8 @@
 撮合事件接收範例程式
 """
 
+import asyncio
+
 try:
     from skcom.receiver import AsyncQuoteReceiver as QuoteReceiver
 except ImportError as ex:
@@ -9,7 +11,7 @@ except ImportError as ex:
     print('例外訊息:', ex)
     exit(1)
 
-def on_receive_ticks_entry(ticks_entry):
+async def on_receive_ticks_entry(ticks_entry):
     """
     處理撮合事件
     """
@@ -26,7 +28,7 @@ def on_receive_ticks_entry(ticks_entry):
         )
     )
 
-def on_receive_best5(best5_entry):
+async def on_receive_best5(best5_entry):
     """
     處理最佳五檔事件
     """
@@ -39,7 +41,7 @@ def on_receive_best5(best5_entry):
             best5_entry['best'][i]['askQty'],
         ))
 
-def main():
+async def main():
     """
     main()
     """
@@ -48,7 +50,7 @@ def main():
     qrcv = QuoteReceiver()
     qrcv.set_ticks_hook(on_receive_ticks_entry, include_history)
     qrcv.set_best5_hook(on_receive_best5)
-    qrcv.start()
+    await qrcv.root_task()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

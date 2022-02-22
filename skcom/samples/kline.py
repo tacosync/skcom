@@ -2,6 +2,8 @@
 日 K 範例程式
 """
 
+import asyncio
+
 try:
     from skcom.receiver import AsyncQuoteReceiver as QuoteReceiver
 except ImportError as ex:
@@ -9,7 +11,7 @@ except ImportError as ex:
     print('例外訊息:', ex)
     exit(1)
 
-def on_receive_kline(kline):
+async def on_receive_kline(kline):
     """
     處理日 K 資料
     """
@@ -27,7 +29,7 @@ def on_receive_kline(kline):
             )
         )
 
-def main():
+async def main():
     """
     main()
     """
@@ -36,7 +38,7 @@ def main():
     # * 0 不限制日數, 取得由史以來所有資料, 用於首次資料蒐集
     # * 預設值 20, 取得近月資料
     qrcv.set_kline_hook(on_receive_kline, 5)
-    qrcv.start()
+    await qrcv.root_task()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
