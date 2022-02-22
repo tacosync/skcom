@@ -65,7 +65,7 @@ class StockBot(QuoteReceiver):
             step += 1
         return step
 
-    def on_receive_ticks(self, tick):
+    async def on_receive_ticks(self, tick):
         if self.avgline_steps:
             logger = logging.getLogger('bot')
 
@@ -130,7 +130,7 @@ class StockBot(QuoteReceiver):
 
             # self.stop()
 
-    def on_receive_kline(self, kline):
+    async def on_receive_kline(self, kline):
         """
         處理日 K 資料
         """
