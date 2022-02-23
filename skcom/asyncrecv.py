@@ -71,7 +71,6 @@ class AsyncQuoteReceiver():
         self.skr = None # 回報 API
 
         # 接收器設定屬性
-        self.cache_path = os.path.expanduser(r'~\.skcom\cache')
         self.dst_conf = os.path.expanduser(r'~\.skcom\skcom.yaml')
         self.log_path = os.path.expanduser(r'~\.skcom\logs\capital')
 
@@ -93,7 +92,6 @@ class AsyncQuoteReceiver():
         self.kline_hook = None
         self.stock_name = {}
         self.daily_kline = {}
-        self.end_date = ''
         self.kline_days_limit = 20
         self.kline_last_mtime = 0
 
@@ -308,37 +306,23 @@ class AsyncQuoteReceiver():
     def request_kline(self):
         """ 取得股名 & 請求日 K 資料 """
         # 取樣截止日
-        # 15:00 以前取樣到昨日
-        # 15:00 以後取樣到當日
+        # 生成開始日與結束日參數, 配合 SKQuoteLib_RequestKLineAMByDate 使用 YYYYMMDD 格式
+        # end_date 15:00 以前取樣到昨日
+        # end_date 15:00 以後取樣到當日
+        # start_date 逆推 kline_days_limit 之後再逆推 14 天, 補足例假日或國定假日缺口
         now = datetime.today()
-        iso_today = now.strftime('%Y-%m-%d')
         human_min = now.hour * 100 + now.minute
-        day_offset = 0
+        end_date_offset = 0
         if human_min < 1500:
-            day_offset = 1
-
-        # TODO: end_date 正確的值應該取最後交易日, 這個日期不一定是今天或昨天
-        #       錯誤的日期值會導致整批回報沒觸發
-        self.end_date = (datetime.today() - timedelta(days=day_offset)).strftime('%Y-%m-%d')
+            end_date_offset = 1
+        start_date_offset = end_date_offset + self.kline_days_limit + 14
+        end_date = (now - timedelta(days=end_date_offset)).strftime('%Y%m%d')
+        start_date = (now - timedelta(days=start_date_offset)).strftime('%Y%m%d')
+        # logger.info('request_kline() %s ~ %s', start_date, end_date)
 
         # 載入股票代碼/名稱對應
         for stock_no in self.config['products']:
-            cache_filename = r'{}\{}\kline\{}.json'.format(
-                self.cache_path,
-                iso_today,
-                stock_no
-            )
-            if os.path.isfile(cache_filename):
-                with open(cache_filename, 'r', encoding='utf-8') as cache_file:
-                    try:
-                        self.daily_kline[stock_no] = json.load(cache_file)
-                        logger.info('載入 %s 的日 K 快取', stock_no)
-                        continue
-                    except json.decoder.JSONDecodeError:
-                        logger.warning('%s 日 K 快取載入失敗: 不是有效的 JSON 格式', stock_no)
-                    except UnicodeDecodeError:
-                        logger.warning('%s 日 K 快取載入失敗: 不是 UTF-8 編碼', stock_no)
-
+            # 取得個股名稱
             # 參考文件: 4-4-32 (p.201)
             # 1. 參數 pSKStock 可以省略
             # 2. 回傳值是 list [SKSTOCKS*, nCode], 與官方文件不符
@@ -362,20 +346,19 @@ class AsyncQuoteReceiver():
             # 可以用下市產品模擬這段, 如: 00677U
             if stock_no not in self.daily_kline:
                 continue
-            # 參考文件: 4-4-9 (p.187), 4-4-21 (p.193)
+
+            # 參考文件: 4-4-29 (p.198)
             # 1. 使用方式與文件相符
             # 2. 台股日 K 使用全盤與 AM 盤效果相同
-            cache_filename = r'{}\{}\kline\{}.json'.format(
-                self.cache_path,
-                iso_today,
-                stock_no
-            )
-            if os.path.isfile(cache_filename):
-                continue
             logger.info('請求 %s 的日 K 資料', stock_no)
-            # TODO: 改用 SKQuoteLib_RequestKLineAMByDate
-            n_code = self.skq.SKQuoteLib_RequestKLine(stock_no, 4, 1)
-            # n_code = self.skq.SKQuoteLib_RequestKLineAM(stock_no, 4, 1, 1)
+            kline_type = 4           # 0:分線 / 4:日線 / 5:週線 / 6:月線
+            out_type = 1             # 0:舊版 / 1:新版
+            trade_session = 1        # 0:全盤 / 1:AM盤
+            min_number = 0           # 分K線的分鐘間隔 kline_type = 0 才有用
+            n_code = self.skq.SKQuoteLib_RequestKLineAMByDate(
+                stock_no, kline_type, out_type, trade_session,
+                start_date, end_date, min_number
+            )
             if n_code != 0:
                 self.handle_sk_error('RequestKLine()', n_code)
                 continue
@@ -390,39 +373,23 @@ class AsyncQuoteReceiver():
             passed = time.time() - self.kline_last_mtime
             if passed < 0.15:
                 continue
-            
-            # 生成快取目錄
-            iso_today = datetime.now().strftime('%Y-%m-%d')
-            cache_base = r'{}\{}\kline'.format(self.cache_path, iso_today)
-            if not os.path.isdir(cache_base):
-                os.makedirs(cache_base)
 
             # 生成日 K 事件
             for stock_id in self.daily_kline:
-                cache_filename = r'{}\{}.json'.format(cache_base, stock_id)
-
-                # 寫入快取檔
-                if not os.path.isfile(cache_filename):
-                    self.daily_kline[stock_id]['quotes'].reverse()
-                    # Python for windows 可能會用 BIG5 存檔, 自己指定比較保險
-                    with open(cache_filename, 'w', encoding='utf-8') as cache_file:
-                        json.dump(
-                            self.daily_kline[stock_id],
-                            cache_file,
-                            indent=2,
-                            ensure_ascii=False
-                        )
-
                 # 觸發事件
                 # pylint: disable=line-too-long
-                self.daily_kline[stock_id]['quotes'] = self.daily_kline[stock_id]['quotes'][0:self.kline_days_limit]
                 if self.kline_hook is not None:
-                    retv = self.kline_hook(self.daily_kline[stock_id])
+                    # 報價數量只留下最後 kline_days_limit 筆, 其餘捨棄
+                    resp = self.daily_kline[stock_id]
+                    resp['quotes'] = resp['quotes'][-self.kline_days_limit:]
+                    # 觸發事件
+                    retv = self.kline_hook(resp)
                     self.await_coroutine(retv)
                 else:
                     logger.info('    日 K: %s 已接收', stock_id)
 
             # 清除緩衝資料
+            # TODO: 這個做法會
             self.daily_kline = None
             break
 
@@ -585,7 +552,7 @@ class AsyncQuoteReceiver():
         cols = bstrData.split(', ')
         this_date = cols[0].replace('/', '-')
         self.kline_last_mtime = time.time()
-        # logger.info('%s %.5f' % (this_date, self.kline_last_mtime))
+        # logger.info('OnNotifyKLineData() %s %.5f' % (this_date, self.kline_last_mtime))
 
         if self.daily_kline[bstrStockNo] is not None:
             # 寫入緩衝區與交易日數限制處理
