@@ -17,6 +17,11 @@
 
 ## Changelog
 
+0.9.9
+
+* 日 K 改用 4-4-29 SKQuoteLib_RequestKLineAMByDate 取得
+* hook 支援非同步處理
+
 0.9.8
 
 * Ticks 範例增加歷史回補與最佳五檔功能 - #88
