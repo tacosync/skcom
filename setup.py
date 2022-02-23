@@ -30,7 +30,7 @@ readme.close()
 # https://python-packaging.readthedocs.io/en/latest/non-code-files.html
 setup(
     name='skcom',
-    version='0.9.8',
+    version='0.9.9',
     description='Get stock informations by Capital API.',
     long_description=longdesc,
     long_description_content_type='text/markdown',
